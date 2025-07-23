@@ -15,6 +15,9 @@ func promptChat() error {
 	if err := InitPromptEnv(); err != nil {
 		return err
 	}
+	if optPromptArgs == "" {
+		optPromptArgs = "{}"
+	}
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(optPromptArgs), &args); err != nil {
 		return err

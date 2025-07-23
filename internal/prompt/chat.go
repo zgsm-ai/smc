@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	REQ_PROMPT_CHAT   = "/api/prompts/{0}/chat"
-	REQ_PROMPT_RENDER = "/api/prompts/{0}/render"
+	REQ_PROMPT_CHAT   = "/ai-prompt-shell/api/v1/prompts/{0}/chat"
+	REQ_PROMPT_RENDER = "/ai-prompt-shell/api/v1/prompts/{0}/render"
 )
 
 /**
