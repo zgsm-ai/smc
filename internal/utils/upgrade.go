@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bufio"
 	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 /**
@@ -245,17 +247,21 @@ func correctConfig(cfg *UpgradeConfig) {
 	if cfg.Os == "" {
 		cfg.Os = runtime.GOOS
 	}
-	if cfg.InstallDir == "" {
-		if runtime.GOOS == "windows" {
-			cfg.InstallDir = filepath.Join(os.Getenv("APPDATA"), ".costrict\\bin")
-		} else if runtime.GOOS == "linux" {
-			cfg.InstallDir = "/usr/local/bin"
+	fext := ""
+	if runtime.GOOS == "windows" {
+		appData := os.Getenv("APPDATA")
+		if cfg.InstallDir == "" {
+			cfg.InstallDir = filepath.Join(appData, ".costrict\\bin")
 		}
-	}
-	if cfg.PackageDir == "" {
-		if runtime.GOOS == "windows" {
-			cfg.PackageDir = filepath.Join(os.Getenv("APPDATA"), ".costrict\\package")
-		} else if runtime.GOOS == "linux" {
+		if cfg.PackageDir == "" {
+			cfg.PackageDir = filepath.Join(appData, ".costrict\\package")
+		}
+		fext = ".exe"
+	} else if runtime.GOOS == "linux" {
+		if cfg.InstallDir == "" {
+			cfg.InstallDir = "/usr/local/.costrict/bin"
+		}
+		if cfg.PackageDir == "" {
 			cfg.PackageDir = "/usr/local/.costrict/package"
 		}
 	}
@@ -266,7 +272,7 @@ func correctConfig(cfg *UpgradeConfig) {
 		cfg.PublicKey = SHENMA_PUBLIC_KEY
 	}
 	if cfg.TargetName == "" {
-		cfg.TargetName = cfg.PackageName
+		cfg.TargetName = fmt.Sprintf("%s%s", cfg.PackageName, fext)
 	}
 }
 
@@ -297,7 +303,7 @@ func UpgradePackage(cfg *UpgradeConfig, curVer VersionNumber, specVer *VersionNu
 		//	比较当前最新版本，看是否有必要升级
 		ret := CompareVersion(curVer, vers.Newest.VersionId)
 		if ret >= 0 {
-			fmt.Printf("The aip version is up to date\n")
+			log.Printf("The '%s' version is up to date\n", cfg.PackageName)
 			return nil
 		}
 		addr = vers.Newest
@@ -339,63 +345,132 @@ func UpgradePackage(cfg *UpgradeConfig, curVer VersionNumber, specVer *VersionNu
 	if err = os.MkdirAll(cfg.InstallDir, 0775); err != nil {
 		return fmt.Errorf("MkdirAll('%s') error: %v", cfg.InstallDir, err)
 	}
-	//	把下载的aip程序安装到正式目录
-	targetFileName := filepath.Join(cfg.InstallDir, cfg.TargetName)
-	if err = installExecute(targetFileName, tmpFname); err != nil {
-		return fmt.Errorf("installExecute('%s', '%s') error: %v", targetFileName, tmpFname, err)
+	if err = os.MkdirAll(cfg.PackageDir, 0775); err != nil {
+		return fmt.Errorf("MkdirAll('%s') error: %v", cfg.PackageDir, err)
+	}
+	//	把下载的程序安装到正式目录
+	if err = installExecutable(cfg, tmpFname); err != nil {
+		return fmt.Errorf("installExecutable('%+v', '%s') error: %v", cfg, tmpFname, err)
 	}
 	//	把包描述文件保存到包文件目录
 	packageFileName := filepath.Join(cfg.PackageDir, fmt.Sprintf("%s.json", cfg.PackageName))
-	if err = os.WriteFile(packageFileName, data, 0755); err != nil {
-		log.Printf("write package file(%s) failed: %s", packageFileName, err.Error())
+	if err = os.WriteFile(packageFileName, data, 0644); err != nil {
+		log.Printf("Write package file(%s) failed: %v", packageFileName, err)
 	}
+	os.RemoveAll(tmpDir)
 	return nil
 }
 
-const BATFILE_SETENV = `setx PATH "%%PATH%%;%s"
-sleep 1
-del "%s"
-copy "%s" "%s"
-del /S "%s"
-del _aip_install.bat
-`
-const BATFILE_HASENV = `sleep 1
-del "%s"
-copy "%s" "%s"
-del /S "%s"
-del _aip_install.bat
-`
+func windowsInstallExecutable(cfg *UpgradeConfig, tmpFname string) error {
+	paths := os.Getenv("PATH")
+	if !strings.Contains(paths, cfg.InstallDir) {
+		newPath := fmt.Sprintf("%s;%s", paths, cfg.InstallDir)
+		cmd := exec.Command("setx", "PATH", newPath)
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} // 隐藏命令窗口
+		if err := cmd.Run(); err != nil {
+			return err
+		}
+		os.Setenv("PATH", newPath)
+	}
+	targetFileName := filepath.Join(cfg.InstallDir, cfg.TargetName)
+	if err := os.Remove(targetFileName); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpFname, targetFileName); err != nil {
+		return err
+	}
+	return os.Chmod(targetFileName, 0755)
+}
+
+func linuxInstallExecutable(cfg *UpgradeConfig, tmpFname string) error {
+	if err := linuxSetPATH(cfg.InstallDir); err != nil {
+		return err
+	}
+	targetFileName := filepath.Join(cfg.InstallDir, cfg.TargetName)
+	if err := os.Rename(tmpFname, targetFileName); err != nil {
+		return err
+	}
+	return os.Chmod(targetFileName, 0755)
+}
+
+func linuxSetPATH(installDir string) error {
+	currentPath := os.Getenv("PATH")
+	// 检查是否已经包含该路径
+	currentPathStr := strings.TrimSpace(currentPath)
+	if strings.Contains(currentPathStr, installDir) {
+		log.Println("The path is already in PATH.")
+		return nil
+	}
+	// 将新路径添加到 PATH
+	newPathStr := fmt.Sprintf("%s:%s", currentPathStr, installDir)
+	err := os.Setenv("PATH", newPathStr)
+	if err != nil {
+		fmt.Println("Failed to set PATH for current process:", err)
+		return err
+	}
+	// 获取当前用户的主目录
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Println("Failed to get user home directory:", err)
+		return err
+	}
+	envLine := fmt.Sprintf("export PATH=$PATH:%s", installDir)
+
+	bashrcPath := homeDir + "/.bashrc"
+	// 检查是否已经包含该环境变量
+	file, err := os.Open(bashrcPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			log.Println("Failed to open ~/.bashrc:", err)
+			return err
+		}
+		// 文件不存在，创建一个空文件
+		file, err = os.Create(bashrcPath)
+		if err != nil {
+			log.Println("Failed to create ~/.bashrc:", err)
+			return err
+		}
+		file.Close()
+	} else {
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			if strings.Contains(scanner.Text(), envLine) {
+				file.Close()
+				log.Println("Environment variable already exists in ~/.bashrc.")
+				return nil
+			}
+		}
+		file.Close()
+		if err := scanner.Err(); err != nil {
+			log.Println("Failed to read ~/.bashrc:", err)
+			return err
+		}
+	}
+	// 将环境变量追加到 ~/.bashrc 文件
+	file, err = os.OpenFile(bashrcPath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Println("Failed to open ~/.bashrc for appending:", err)
+		return err
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(envLine + "\n")
+	if err != nil {
+		log.Println("Failed to write environment variable to ~/.bashrc:", err)
+		return err
+	}
+
+	log.Println("Environment variable added to ~/.bashrc successfully.")
+	return nil
+}
 
 /**
  *	把可执行文件安装到应用目录，并保证该程序为可执行状态(比如需要设置PATH和权限位)
  */
-func installExecute(targetFileName, tmpFname string) error {
+func installExecutable(cfg *UpgradeConfig, tmpFname string) error {
 	if runtime.GOOS == "windows" {
-		binDir := filepath.Dir(targetFileName)
-		tmpDir := filepath.Dir(tmpFname)
-		paths := os.Getenv("PATH")
-
-		var fcontent string
-		if !strings.Contains(paths, binDir) {
-			fcontent = fmt.Sprintf(BATFILE_SETENV,
-				binDir, targetFileName, tmpFname, targetFileName, tmpDir)
-		} else {
-			fcontent = fmt.Sprintf(BATFILE_HASENV,
-				targetFileName, tmpFname, targetFileName, tmpDir)
-		}
-		batFname := filepath.Join(tmpDir, "_aip_install.bat")
-		if err := os.WriteFile(batFname, []byte(fcontent), 0666); err != nil {
-			return err
-		}
-		cmd := exec.Command(batFname)
-		if err := cmd.Start(); err != nil {
-			return err
-		}
-		return nil
+		return windowsInstallExecutable(cfg, tmpFname)
 	} else {
-		if err := os.Rename(tmpFname, targetFileName); err != nil {
-			return err
-		}
-		return os.Chmod(targetFileName, 0777)
+		return linuxInstallExecutable(cfg, tmpFname)
 	}
 }
