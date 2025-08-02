@@ -1,0 +1,74 @@
+package pkg
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+	"github.com/zgsm-ai/smc/cmd/common"
+	"github.com/zgsm-ai/smc/internal/utils"
+)
+
+func upgradePackage() error {
+	var err error
+	var retVer utils.VersionNumber
+	if err = common.InitCommonEnv(); err != nil {
+		return err
+	}
+	cfg := utils.UpgradeConfig{}
+	cfg.PackageName = optPackageName
+	cfg.Correct()
+	curVer, _ := utils.GetLocalVersion(cfg)
+	if optPackageVersion != "" {
+		var ver utils.VersionNumber
+		ver, err = utils.ParseVersion(optVersion)
+		if err != nil {
+			return err
+		}
+		retVer, err = utils.UpgradePackage(cfg, curVer, &ver)
+	} else {
+		retVer, err = utils.UpgradePackage(cfg, curVer, nil)
+	}
+	if err != nil {
+		fmt.Printf("The '%s' upgrade failed: %v", cfg.PackageName, err)
+		return err
+	}
+	if utils.CompareVersion(retVer, curVer) == 0 {
+		fmt.Printf("The '%s' version is up to date\n", cfg.PackageName)
+	} else {
+		fmt.Printf("The '%s' is upgraded to version %s\n", cfg.PackageName, utils.PrintVersion(retVer))
+	}
+	return err
+}
+
+var upgradeCmd = &cobra.Command{
+	Use:   "upgrade {package-name | -p package-name}",
+	Short: "Upgrade package",
+	Long:  `Upgrade package`,
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 1 {
+			optPackageName = args[0]
+		}
+		if optPackageName == "" {
+			fmt.Println("Error: package name is required (either as positional argument or via -p/--package option)")
+			return fmt.Errorf("miss parameter")
+		}
+		return upgradePackage()
+	},
+}
+
+const upgradeExample = `  # upgrade package
+  smc package upgrade -p codebase-syncer -v 1.0.0
+  smc package upgrade -p codebase-syncer`
+
+var optPackageVersion string
+var optPackageName string
+
+func init() {
+	packageCmd.AddCommand(upgradeCmd)
+	upgradeCmd.Flags().SortFlags = false
+	upgradeCmd.Example = upgradeExample
+
+	upgradeCmd.Flags().StringVarP(&optPackageName, "package", "p", "", "package name")
+	upgradeCmd.Flags().StringVarP(&optPackageVersion, "version", "v", "", "package version")
+}

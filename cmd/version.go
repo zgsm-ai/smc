@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/zgsm-ai/smc/cmd/common"
 )
 
 var SoftwareVer = ""
@@ -33,7 +34,7 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(versionCmd)
+	common.RootCmd.AddCommand(versionCmd)
 
 	versionCmd.Example = `  smc version`
 }
