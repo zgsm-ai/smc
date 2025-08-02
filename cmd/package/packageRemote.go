@@ -66,15 +66,39 @@ type RemotePackage_Columns_Verbose struct {
 	Description  string `json:"description"`
 }
 
+func listRemotePackages(verbose bool, os string, arch string) error {
+	// 格式化输出版本列表
+	var dataList []*orderedmap.OrderedMap
+	if optRemotePackageName != "" {
+		ret, err := listRemotePackage(optRemotePackageName, verbose, os, arch)
+		if err != nil {
+			return err
+		}
+		dataList = append(dataList, ret...)
+	} else {
+		cfg := utils.UpgradeConfig{}
+		cfg.Correct()
+		packages, err := utils.GetRemotePackages(cfg)
+		if err != nil {
+			return err
+		}
+		for _, pkg := range packages.Packages {
+			ret, err := listRemotePackage(pkg, verbose, os, arch)
+			if err != nil {
+				fmt.Printf("error: %v\n", err.Error())
+			} else {
+				dataList = append(dataList, ret...)
+			}
+		}
+	}
+	utils.PrintFormat(dataList)
+	return nil
+}
+
 /**
  *	List remote package information
  */
-func listRemotePackages(packageName string, verbose bool, os string, arch string) error {
-	// 检查包名参数不能为空
-	if packageName == "" {
-		return fmt.Errorf("package name cannot be empty")
-	}
-
+func listRemotePackage(packageName string, verbose bool, os string, arch string) ([]*orderedmap.OrderedMap, error) {
 	// 创建升级配置
 	cfg := utils.UpgradeConfig{
 		PackageName: packageName,
@@ -86,20 +110,20 @@ func listRemotePackages(packageName string, verbose bool, os string, arch string
 	// 获取远程版本列表
 	versList, err := utils.GetRemoteVersions(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to get remote versions: %v", err)
+		return nil, fmt.Errorf("failed to get remote versions: %v", err)
 	}
 
 	// 格式化输出版本列表
 	var dataList []*orderedmap.OrderedMap
 	for _, ver := range versList.Versions {
-		if verbose {
-			// verbose模式：显示所有字段
-			row := RemotePackage_Columns_Verbose{}
-			row.PackageName = versList.PackageName
-			row.Os = versList.Os
-			row.Arch = versList.Arch
-			row.Version = utils.PrintVersion(ver.VersionId)
+		// verbose模式：显示所有字段
+		row := RemotePackage_Columns_Verbose{}
+		row.PackageName = versList.PackageName
+		row.Os = versList.Os
+		row.Arch = versList.Arch
+		row.Version = utils.PrintVersion(ver.VersionId)
 
+		if verbose {
 			row.Size = "*"
 			row.Checksum = "*"
 			row.ChecksumAlgo = "*"
@@ -116,23 +140,11 @@ func listRemotePackages(packageName string, verbose bool, os string, arch string
 					row.Description = pkgInfo.Description
 				}
 			}
-			recordMap, _ := utils.StructToOrderedMap(row)
-			dataList = append(dataList, recordMap)
-		} else {
-			// 非verbose模式：只显示基本字段
-			row := RemotePackage_Columns{}
-			row.PackageName = versList.PackageName
-			row.Os = versList.Os
-			row.Arch = versList.Arch
-			row.Version = utils.PrintVersion(ver.VersionId)
-
-			recordMap, _ := utils.StructToOrderedMap(row)
-			dataList = append(dataList, recordMap)
 		}
+		recordMap, _ := utils.StructToOrderedMap(row)
+		dataList = append(dataList, recordMap)
 	}
-
-	utils.PrintFormat(dataList)
-	return nil
+	return dataList, nil
 }
 
 // packageRemoteCmd represents the 'smc package remote' command
@@ -145,7 +157,7 @@ var packageRemoteCmd = &cobra.Command{
 		if len(args) == 1 {
 			optRemotePackageName = args[0]
 		}
-		return listRemotePackages(optRemotePackageName, optRemoteVerbose, optRemoteOs, optRemoteArch)
+		return listRemotePackages(optRemoteVerbose, optRemoteOs, optRemoteArch)
 	},
 }
 

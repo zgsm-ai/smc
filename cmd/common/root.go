@@ -5,6 +5,7 @@ package common
 
 import (
 	"os"
+	"fmt"
 
 	"github.com/spf13/cobra"
 )
@@ -27,6 +28,7 @@ Features include task management, tagging, and extension management`,
 func Execute() {
 	err := RootCmd.Execute()
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s", err.Error())
 		os.Exit(1)
 	}
 }

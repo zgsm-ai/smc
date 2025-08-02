@@ -123,9 +123,6 @@ vwIDAQAB
 const SHENMA_BASE_URL = "https://zgsm.sangfor.com/shenma/api/v1"
 
 func (cfg *UpgradeConfig) Correct() {
-	if cfg.PackageName == "" {
-		panic("UpgradeConfig.PackageName is emptied")
-	}
 	if cfg.Arch == "" {
 		cfg.Arch = runtime.GOARCH
 	}

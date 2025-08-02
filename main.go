@@ -9,6 +9,5 @@ import (
 )
 
 func main() {
-
 	common.Execute()
 }
