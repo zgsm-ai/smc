@@ -21,8 +21,12 @@ func signSoftware() error {
 	if err != nil {
 		return err
 	}
-	data := utils.Sign(priKey, []byte(md5str))
-	fmt.Printf("%s\n", hex.EncodeToString(data))
+	data, err := utils.Sign(priKey, []byte(md5str))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %s\n", err.Error())
+	} else {
+		fmt.Printf("%s\n", hex.EncodeToString(data))
+	}
 	return nil
 }
 

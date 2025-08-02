@@ -23,7 +23,10 @@ func makePackage() error {
 	if err != nil {
 		return err
 	}
-	data := utils.Sign(priKey, []byte(md5str))
+	data, err := utils.Sign(priKey, []byte(md5str))
+	if err != nil {
+		return err
+	}
 	dir, fname := filepath.Split(optFrom)
 
 	pkgData := &utils.PackageInfo{}
