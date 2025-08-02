@@ -308,6 +308,35 @@ func GetRemoteVersions(cfg UpgradeConfig) (PlatformInfo, error) {
 	return *vers, nil
 }
 
+func GetRemotePlatforms(cfg UpgradeConfig) (PlatformList, error) {
+	urlStr := fmt.Sprintf("%s/%s/platforms.json",
+		cfg.BaseUrl, cfg.PackageName)
+
+	bytes, err := GetBytes(urlStr, nil)
+	if err != nil {
+		return PlatformList{}, err
+	}
+	plats := &PlatformList{}
+	if err = json.Unmarshal(bytes, plats); err != nil {
+		return *plats, fmt.Errorf("GetRemoteVersion('%s') unmarshal error: %v", urlStr, err)
+	}
+	return *plats, nil
+}
+
+func GetRemotePackages(cfg UpgradeConfig) (PackageList, error) {
+	urlStr := fmt.Sprintf("%s/packages.json", cfg.BaseUrl)
+
+	bytes, err := GetBytes(urlStr, nil)
+	if err != nil {
+		return PackageList{}, err
+	}
+	pkgs := &PackageList{}
+	if err = json.Unmarshal(bytes, pkgs); err != nil {
+		return *pkgs, fmt.Errorf("GetRemoteVersion('%s') unmarshal error: %v", urlStr, err)
+	}
+	return *pkgs, nil
+}
+
 /**
  *	比较版本
  */
