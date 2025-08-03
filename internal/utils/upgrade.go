@@ -102,6 +102,7 @@ type PackageList struct {
 type UpgradeConfig struct {
 	PublicKey   string //用来验证包签名的公钥
 	BaseUrl     string //保存安装包的服务器的基地址
+	BaseDir     string //costrict数据所在的基路径
 	InstallDir  string //软件包的安装路径
 	PackageDir  string //保存下载软件包的包描述文件
 	PackageName string //包名称
@@ -129,21 +130,20 @@ func (cfg *UpgradeConfig) Correct() {
 	if cfg.Os == "" {
 		cfg.Os = runtime.GOOS
 	}
+	homeDir := "/root"
 	if runtime.GOOS == "windows" {
-		appData := os.Getenv("APPDATA")
-		if cfg.InstallDir == "" {
-			cfg.InstallDir = filepath.Join(appData, ".costrict\\bin")
-		}
-		if cfg.PackageDir == "" {
-			cfg.PackageDir = filepath.Join(appData, ".costrict\\package")
-		}
+		homeDir = os.Getenv("USERPROFILE")
 	} else if runtime.GOOS == "linux" {
-		if cfg.InstallDir == "" {
-			cfg.InstallDir = "/usr/local/.costrict/bin"
-		}
-		if cfg.PackageDir == "" {
-			cfg.PackageDir = "/usr/local/.costrict/package"
-		}
+		homeDir = os.Getenv("HOME")
+	}
+	if cfg.BaseDir == "" {
+		cfg.BaseDir = filepath.Join(homeDir, ".costrict")
+	}
+	if cfg.InstallDir == "" {
+		cfg.InstallDir = filepath.Join(cfg.BaseDir, "bin")
+	}
+	if cfg.PackageDir == "" {
+		cfg.PackageDir = filepath.Join(cfg.BaseDir, "package")
 	}
 	if cfg.BaseUrl == "" {
 		cfg.BaseUrl = SHENMA_BASE_URL
@@ -279,10 +279,10 @@ func GetLocalVersion(cfg UpgradeConfig) (VersionNumber, error) {
 	var pkg PackageInfo
 	bytes, err := os.ReadFile(packageFileName)
 	if err != nil {
-		return VersionNumber{}, nil
+		return VersionNumber{}, err
 	}
 	if err := json.Unmarshal(bytes, &pkg); err != nil {
-		return VersionNumber{}, nil
+		return VersionNumber{}, err
 	}
 	return pkg.VersionId, nil
 }
@@ -291,7 +291,8 @@ func GetLocalVersion(cfg UpgradeConfig) (VersionNumber, error) {
  *	从远程库获取包版本
  */
 func GetRemoteVersions(cfg UpgradeConfig) (PlatformInfo, error) {
-	urlStr := fmt.Sprintf("%s/%s/%s/%s/packages.json",
+	//	<base-url>/<package>/<os>/<arch>/platform.json
+	urlStr := fmt.Sprintf("%s/%s/%s/%s/platform.json",
 		cfg.BaseUrl, cfg.PackageName, cfg.Os, cfg.Arch)
 
 	bytes, err := GetBytes(urlStr, nil)
@@ -306,6 +307,7 @@ func GetRemoteVersions(cfg UpgradeConfig) (PlatformInfo, error) {
 }
 
 func GetRemotePlatforms(cfg UpgradeConfig) (PlatformList, error) {
+	//	<base-url>/<package>/platforms.json
 	urlStr := fmt.Sprintf("%s/%s/platforms.json",
 		cfg.BaseUrl, cfg.PackageName)
 
@@ -321,6 +323,7 @@ func GetRemotePlatforms(cfg UpgradeConfig) (PlatformList, error) {
 }
 
 func GetRemotePackages(cfg UpgradeConfig) (PackageList, error) {
+	//	<base-url>/packages.json
 	urlStr := fmt.Sprintf("%s/packages.json", cfg.BaseUrl)
 
 	bytes, err := GetBytes(urlStr, nil)
@@ -351,13 +354,13 @@ func CompareVersion(local, remote VersionNumber) int {
  *	获取costrict目录结构设定
  */
 func GetCostrictDir() (baseDir, installDir, packageDir string) {
-	baseDir = "/usr/local/.costrict"
+	homeDir := "/root"
 	if runtime.GOOS == "windows" {
-		appData := os.Getenv("APPDATA")
-		baseDir = filepath.Join(appData, ".costrict")
+		homeDir = os.Getenv("USERPROFILE")
 	} else if runtime.GOOS == "linux" {
-		baseDir = "/usr/local/.costrict"
+		homeDir = os.Getenv("HOME")
 	}
+	baseDir = filepath.Join(homeDir, ".costrict")
 	installDir = filepath.Join(baseDir, "bin")
 	packageDir = filepath.Join(baseDir, "package")
 	return baseDir, installDir, packageDir
@@ -472,6 +475,9 @@ func savePackageData(cfg UpgradeConfig, pkg PackageInfo, tmpFname string) error 
 		targetFileName = cfg.TargetPath
 	} else {
 		targetFileName = filepath.Join(cfg.InstallDir, pkg.FileName)
+	}
+	if err := mkParentDir(targetFileName); err != nil {
+		return err
 	}
 	os.Remove(targetFileName)
 	if err := os.Rename(tmpFname, targetFileName); err != nil {
