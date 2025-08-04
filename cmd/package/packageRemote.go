@@ -3,7 +3,6 @@ package pkg
 import (
 	"encoding/json"
 	"fmt"
-	"runtime"
 	"strconv"
 
 	"github.com/iancoleman/orderedmap"
@@ -66,11 +65,11 @@ type RemotePackage_Columns_Verbose struct {
 	Description  string `json:"description"`
 }
 
-func listRemotePackages(verbose bool, os string, arch string) error {
+func listPackages(verbose bool) error {
 	// 格式化输出版本列表
 	var dataList []*orderedmap.OrderedMap
 	if optRemotePackageName != "" {
-		ret, err := listRemotePackage(optRemotePackageName, verbose, os, arch)
+		ret, err := listPackage(optRemotePackageName, verbose)
 		if err != nil {
 			return err
 		}
@@ -83,7 +82,7 @@ func listRemotePackages(verbose bool, os string, arch string) error {
 			return err
 		}
 		for _, pkg := range packages.Packages {
-			ret, err := listRemotePackage(pkg, verbose, os, arch)
+			ret, err := listPackage(pkg, verbose)
 			if err != nil {
 				fmt.Printf("error: %v\n", err.Error())
 			} else {
@@ -98,23 +97,75 @@ func listRemotePackages(verbose bool, os string, arch string) error {
 /**
  *	List remote package information
  */
-func listRemotePackage(packageName string, verbose bool, os string, arch string) ([]*orderedmap.OrderedMap, error) {
+func listPackage(packageName string, verbose bool) ([]*orderedmap.OrderedMap, error) {
 	// 创建升级配置
 	cfg := utils.UpgradeConfig{
 		PackageName: packageName,
-		Os:          os,
-		Arch:        arch,
 	}
 	cfg.Correct()
 
-	// 获取远程版本列表
-	versList, err := utils.GetRemoteVersions(cfg)
+	// 获取该软件包支持的所有平台
+	platformList, err := utils.GetRemotePlatforms(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get remote versions: %v", err)
+		return nil, fmt.Errorf("failed to get remote platforms: %v", err)
 	}
 
 	// 格式化输出版本列表
 	var dataList []*orderedmap.OrderedMap
+
+	// 遍历所有支持的平台，根据 os 和 arch 参数进行过滤
+	for _, platform := range platformList.Platforms {
+		// 如果 os 和 arch 都指定了，只显示匹配的平台
+		if optRemoteOs != "" && optRemoteArch != "" {
+			if platform.Os != optRemoteOs || platform.Arch != optRemoteArch {
+				continue
+			}
+		} else if optRemoteOs != "" {
+			// 如果只指定了 os，只显示匹配 os 的平台
+			if platform.Os != optRemoteOs {
+				continue
+			}
+		} else if optRemoteArch != "" {
+			// 如果只指定了 arch，只显示匹配 arch 的平台
+			if platform.Arch != optRemoteArch {
+				continue
+			}
+		}
+		// 如果 os 和 arch 都未指定，显示所有平台（不进行过滤）
+
+		// 调用 listPlatform 函数搜集单个平台信息
+		platformData, err := listPlatform(packageName, platform.Os, platform.Arch, verbose)
+		if err != nil {
+			fmt.Printf("Warning: failed to get platform data for %s/%s: %v\n", platform.Os, platform.Arch, err)
+			continue
+		}
+		dataList = append(dataList, platformData...)
+	}
+	return dataList, nil
+}
+
+/**
+ *	搜集单个平台信息
+ */
+func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.OrderedMap, error) {
+	// 为平台创建特定的配置
+	platformCfg := utils.UpgradeConfig{
+		PackageName: packageName,
+		Os:          os,
+		Arch:        arch,
+	}
+	platformCfg.Correct()
+
+	// 获取该平台的远程版本列表
+	versList, err := utils.GetRemoteVersions(platformCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get remote versions for platform %s/%s: %v", os, arch, err)
+	}
+
+	// 格式化输出版本列表
+	var dataList []*orderedmap.OrderedMap
+
+	// 遍历该平台的所有版本
 	for _, ver := range versList.Versions {
 		// verbose模式：显示所有字段
 		row := RemotePackage_Columns_Verbose{}
@@ -131,7 +182,7 @@ func listRemotePackage(packageName string, verbose bool, os string, arch string)
 			row.Description = "*"
 			// 获取版本的详细元数据
 			if ver.InfoUrl != "" {
-				pkgInfo, err := getPackageDetailInfo(cfg.BaseUrl + ver.InfoUrl)
+				pkgInfo, err := getPackageDetailInfo(platformCfg.BaseUrl + ver.InfoUrl)
 				if err == nil {
 					row.Size = formatSize(pkgInfo.Size)
 					row.Checksum = pkgInfo.Checksum
@@ -157,7 +208,7 @@ var packageRemoteCmd = &cobra.Command{
 		if len(args) == 1 {
 			optRemotePackageName = args[0]
 		}
-		return listRemotePackages(optRemoteVerbose, optRemoteOs, optRemoteArch)
+		return listPackages(optRemoteVerbose)
 	},
 }
 
@@ -181,6 +232,6 @@ func init() {
 	packageRemoteCmd.Example = packageRemoteExample
 	packageRemoteCmd.Flags().StringVarP(&optRemotePackageName, "package", "p", "", "Package name")
 	packageRemoteCmd.Flags().BoolVarP(&optRemoteVerbose, "verbose", "v", false, "Show details")
-	packageRemoteCmd.Flags().StringVar(&optRemoteOs, "os", runtime.GOOS, "Target operating system")
-	packageRemoteCmd.Flags().StringVar(&optRemoteArch, "arch", runtime.GOARCH, "Target architecture")
+	packageRemoteCmd.Flags().StringVar(&optRemoteOs, "os", "", "Target operating system")
+	packageRemoteCmd.Flags().StringVar(&optRemoteArch, "arch", "", "Target architecture")
 }

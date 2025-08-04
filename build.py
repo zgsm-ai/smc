@@ -1,21 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-import os, time, subprocess, sys
+import os, time, subprocess, sys, platform
 # --debug
 # --install
 # --software
 # --protocol
 opt_debug = False
 opt_install = False
-opt_software = "1.0.20250603"
-opt_protocol = "1.0.20250603"
+opt_software = "1.0.250803"
+opt_protocol = "1.0.250803"
 opt_app = "smc"
+opt_os = None
+opt_arch = None
+opt_module = "github.com/zgsm-ai/{0}".format(opt_app)
 
 def run_cmd(cmd):
     p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout = p.communicate()[0].decode('utf-8').strip()
     return stdout
+
+# Get platform-specific environment variables for Go build
+def get_go_env_vars():
+    # Use user-specified values if provided, otherwise get from go env
+    go_os = opt_os if opt_os is not None else run_cmd('go env GOOS')
+    go_arch = opt_arch if opt_arch is not None else run_cmd('go env GOARCH')
+    
+    # Set environment variables based on current platform
+    current_system = platform.system().lower()
+    if current_system == "windows":
+        return "set GOOS={0}&&set GOARCH={1}&&".format(go_os, go_arch)
+    else:
+        return "GOOS={0} GOARCH={1}".format(go_os, go_arch)
 
 # Get last tag.
 def last_tag():
@@ -29,28 +45,30 @@ def last_commit_id():
 def build_cmd():
     build_flags = []
 
-    build_flags.append("-X 'code.sangfor.com/shenma/{0}/cmd.SoftwareVer={1}'".format(opt_app, opt_software))
-    build_flags.append("-X 'code.sangfor.com/shenma/{0}/cmd.ProtocolVer={1}'".format(opt_app, opt_protocol))
+    build_flags.append("-X '{0}/cmd.SoftwareVer={1}'".format(opt_module, opt_software))
+    build_flags.append("-X '{0}/cmd.ProtocolVer={1}'".format(opt_module, opt_protocol))
     last_git_tag = last_tag()
     if last_git_tag != "":
-        build_flags.append("-X 'code.sangfor.com/shenma/{0}/cmd.BuildTag={1}'".format(opt_app, last_git_tag))
+        build_flags.append("-X '{0}/cmd.BuildTag={1}'".format(opt_module, last_git_tag))
 
     commit_id = last_commit_id()
     if commit_id != "":
-        build_flags.append("-X 'code.sangfor.com/shenma/{0}/cmd.BuildCommitId={1}'".format(opt_app, commit_id))
+        build_flags.append("-X '{0}/cmd.BuildCommitId={1}'".format(opt_module, commit_id))
 
     # current time
-    build_flags.append("-X 'code.sangfor.com/shenma/{0}/cmd.BuildTime={1}'".format(opt_app, 
+    build_flags.append("-X '{0}/cmd.BuildTime={1}'".format(opt_module, 
         time.strftime("%Y-%m-%d %H:%M:%S")))
 
     debug_flag = ""
     if opt_debug:
         debug_flag = '-gcflags=all="-N -l"'
 
+    go_env = get_go_env_vars()
+    
     if opt_install:
-        return 'go install {0} -ldflags "{1}"'.format(debug_flag, " ".join(build_flags))
+        return '{0} go install {1} -ldflags "{2}"'.format(go_env, debug_flag, " ".join(build_flags))
     else:
-        return 'go build {0} -ldflags "{1}"'.format(debug_flag, " ".join(build_flags))
+        return '{0} go build {1} -ldflags "{2}"'.format(go_env, debug_flag, " ".join(build_flags))
 
 def parse_opts():
     global opt_debug
@@ -58,6 +76,8 @@ def parse_opts():
     global opt_protocol
     global opt_software
     global opt_app
+    global opt_os
+    global opt_arch
     argc = len(sys.argv)
     if argc == 1:
         return True
@@ -65,12 +85,14 @@ def parse_opts():
     while i < argc:
         arg = sys.argv[i]
         if arg == '-h':
-            print("build.py [--debug] [--install] [--software VER] [--protocol VER] [--app APPNAME]")
+            print("build.py [--debug] [--install] [--software VER] [--protocol VER] [--app APPNAME] [--os OS] [--arch ARCH]")
             print("  -d,--debug        编译调试版本")
             print("  -i,--install      把程序拷贝到安装目录")
             print("  -s,--software VER 指定软件版本,VER格式:x.x.x,如: 1.1.1210")
             print("  -p,--protocol VER RESTful API的版本,VER格式:x.x.x,如: 1.1.1210")
             print("  -a,--app APPNAME  当前构建的程序名字")
+            print("  --os OS           指定目标操作系统,如: windows, linux, darwin")
+            print("  --arch ARCH       指定目标架构,如: amd64, arm64, 386")
             return False
         elif arg == '-d' or arg == '--debug':
             opt_debug = True
@@ -91,6 +113,16 @@ def parse_opts():
             if i == argc:
                 raise Exception("--protocol/-p missing parameter")
             opt_protocol = sys.argv[i]
+        elif arg == '--os':
+            i += 1
+            if i == argc:
+                raise Exception("--os missing parameter")
+            opt_os = sys.argv[i]
+        elif arg == '--arch':
+            i += 1
+            if i == argc:
+                raise Exception("--arch missing parameter")
+            opt_arch = sys.argv[i]
         i += 1
     return True
 

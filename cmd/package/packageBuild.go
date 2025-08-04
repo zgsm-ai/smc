@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/cobra"
 	"github.com/zgsm-ai/smc/internal/utils"
@@ -97,8 +98,8 @@ func init() {
 	packageBuildCmd.Flags().StringVarP(&optPackage, "package", "p", "", "Package name")
 	packageBuildCmd.Flags().StringVarP(&optFrom, "from", "f", "", "Package file to sign")
 	packageBuildCmd.Flags().StringVarP(&optKeyFile, "key", "k", "", "Private key file")
-	packageBuildCmd.Flags().StringVarP(&optOs, "os", "s", "windows", "Target operating system")
-	packageBuildCmd.Flags().StringVarP(&optArch, "arch", "a", "amd64", "Target hardware architecture")
+	packageBuildCmd.Flags().StringVarP(&optOs, "os", "s", runtime.GOOS, "Target operating system")
+	packageBuildCmd.Flags().StringVarP(&optArch, "arch", "a", runtime.GOARCH, "Target hardware architecture")
 	packageBuildCmd.Flags().StringVarP(&optVersion, "version", "v", "1.0.0", "Package version number(semver)")
 	packageBuildCmd.Flags().StringVarP(&optType, "type", "t", "exec", "Package type: exec/conf")
 	packageBuildCmd.Flags().StringVarP(&optOutput, "output", "o", "", "Output .json file")

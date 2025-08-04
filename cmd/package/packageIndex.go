@@ -218,17 +218,15 @@ func makePackages() error {
 
 // parsePackagePath 解析 package.json 所在的路径，返回包含所有各级目录名的数组
 func parsePackagePath(fpath string) []string {
-	// 获取不包含 package.json 的目录路径
 	dir := filepath.Dir(fpath)
-
-	// 分解目录路径为各级目录名
 	var dirs []string
-	// for dir != "." && dir != "/" && dir != "" {
 	for dir != "" {
 		dirs = append([]string{filepath.Base(dir)}, dirs...)
+		if dir == "." || dir == "/" {
+			break
+		}
 		dir = filepath.Dir(dir)
 	}
-
 	return dirs
 }
 

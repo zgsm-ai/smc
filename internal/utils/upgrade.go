@@ -16,7 +16,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 )
 
 /**
@@ -301,7 +300,7 @@ func GetRemoteVersions(cfg UpgradeConfig) (PlatformInfo, error) {
 	}
 	vers := &PlatformInfo{}
 	if err = json.Unmarshal(bytes, vers); err != nil {
-		return *vers, fmt.Errorf("GetRemoteVersion('%s') unmarshal error: %v", urlStr, err)
+		return *vers, fmt.Errorf("GetRemoteVersions('%s') unmarshal error: %v", urlStr, err)
 	}
 	return *vers, nil
 }
@@ -317,7 +316,7 @@ func GetRemotePlatforms(cfg UpgradeConfig) (PlatformList, error) {
 	}
 	plats := &PlatformList{}
 	if err = json.Unmarshal(bytes, plats); err != nil {
-		return *plats, fmt.Errorf("GetRemoteVersion('%s') unmarshal error: %v", urlStr, err)
+		return *plats, fmt.Errorf("GetRemotePlatforms('%s') unmarshal error: %v", urlStr, err)
 	}
 	return *plats, nil
 }
@@ -332,7 +331,7 @@ func GetRemotePackages(cfg UpgradeConfig) (PackageList, error) {
 	}
 	pkgs := &PackageList{}
 	if err = json.Unmarshal(bytes, pkgs); err != nil {
-		return *pkgs, fmt.Errorf("GetRemoteVersion('%s') unmarshal error: %v", urlStr, err)
+		return *pkgs, fmt.Errorf("GetRemotePackages('%s') unmarshal error: %v", urlStr, err)
 	}
 	return *pkgs, nil
 }
@@ -497,7 +496,7 @@ func windowsSetPATH(installDir string) error {
 	if !strings.Contains(paths, installDir) {
 		newPath := fmt.Sprintf("%s;%s", paths, installDir)
 		cmd := exec.Command("setx", "PATH", newPath)
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} // 隐藏命令窗口
+		// cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true} // 隐藏命令窗口
 		if err := cmd.Run(); err != nil {
 			return err
 		}
