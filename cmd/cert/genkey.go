@@ -33,9 +33,9 @@ var optPrivateKey string
 func init() {
 	certCmd.AddCommand(genkeyCmd)
 
-	genkeyCmd.Example = `  # Generate a pair of public/private key files, output public key as public.pem and private key as private.key
+	genkeyCmd.Example = `  # Generate a pair of public/private key files, output public key as public.key and private key as private.pem
   smc cert genkey`
 	genkeyCmd.Flags().SortFlags = false
-	genkeyCmd.Flags().StringVarP(&optPublicKey, "public", "c", "public.pem", "public key file")
-	genkeyCmd.Flags().StringVarP(&optPrivateKey, "private", "e", "private.key", "private key file")
+	genkeyCmd.Flags().StringVarP(&optPublicKey, "public", "c", "public.key", "public key file")
+	genkeyCmd.Flags().StringVarP(&optPrivateKey, "private", "e", "private.pem", "private key file")
 }

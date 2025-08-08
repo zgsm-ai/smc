@@ -90,10 +90,10 @@ var optType string
 func init() {
 	packageCmd.AddCommand(packageBuildCmd)
 
-	packageBuildCmd.Example = `  # Sign shenma.exe with private key shenma-private.key and generate package descriptor package-windows-amd64-1.0.1120.json (using package option)
-  smc package build -f ./shenma.exe -k shenma-private.key -s windows -a amd64 -v 1.0.1120 -p shenma
+	packageBuildCmd.Example = `  # Sign shenma.exe with private key costrict-private.pem and generate package descriptor package-windows-amd64-1.0.1120.json (using package option)
+  smc package build -f ./shenma.exe -k costrict-private.pem -s windows -a amd64 -v 1.0.1120 -p shenma
   # Same command but using positional argument for package name
-  smc package build shenma -f ./shenma.exe -k shenma-private.key -s windows -a amd64 -v 1.0.1120`
+  smc package build shenma -f ./shenma.exe -k costrict-private.pem -s windows -a amd64 -v 1.0.1120`
 	packageBuildCmd.Flags().SortFlags = false
 	packageBuildCmd.Flags().StringVarP(&optPackage, "package", "p", "", "Package name")
 	packageBuildCmd.Flags().StringVarP(&optFrom, "from", "f", "", "Package file to sign")

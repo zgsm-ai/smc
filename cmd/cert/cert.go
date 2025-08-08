@@ -21,6 +21,6 @@ func init() {
 	common.RootCmd.AddCommand(certCmd)
 
 	certCmd.Example = `  smc cert genkey
-  smc cert sign -k shenma-private.key -t ./shenma
+  smc cert sign -k costrict-private.pem -t ./shenma
   smc cert sum -f ./shenma`
 }

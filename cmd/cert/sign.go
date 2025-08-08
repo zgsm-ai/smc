@@ -49,8 +49,8 @@ var optTarget string
 func init() {
 	certCmd.AddCommand(signCmd)
 
-	signCmd.Example = `  # Sign the shenma file using private key shenma-private.key to get signature string
-  smc cert sign -k shenma-private.key -t ./shenma`
+	signCmd.Example = `  # Sign the shenma file using private key costrict-private.pem to get signature string
+  smc cert sign -k costrict-private.pem -t ./shenma`
 	signCmd.Flags().SortFlags = false
 	signCmd.Flags().StringVarP(&optKeyFile, "key", "k", "", "Private key file")
 	signCmd.Flags().StringVarP(&optTarget, "target", "t", "", "Target file to sign")
