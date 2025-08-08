@@ -129,8 +129,12 @@ func savePlatform(plat *PlatformNode) error {
 }
 
 func savePlatforms(plats *PlatformsNode) error {
+	fpath := filepath.Join(plats.BaseDir, "platforms.json")
+	if !isSubdirectory(plats.BaseDir, optBuildDir) {
+		fmt.Printf("ignore %s\n", fpath)
+		return nil
+	}
 	var platforms utils.PlatformList
-
 	platforms.PackageName = plats.PackageName
 	for _, v := range plats.Platforms {
 		platforms.Platforms = append(platforms.Platforms, utils.PlatformId{
@@ -138,7 +142,6 @@ func savePlatforms(plats *PlatformsNode) error {
 			Arch: v.Plat.Arch,
 		})
 	}
-	fpath := filepath.Join(plats.BaseDir, "platforms.json")
 	fmt.Printf("create %s, platforms: %d\n", fpath, len(platforms.Platforms))
 	data, err := json.MarshalIndent(platforms, "", "  ")
 	if err != nil {
@@ -154,6 +157,11 @@ func savePlatforms(plats *PlatformsNode) error {
 
 func savePackages() error {
 	if allPackages.BaseDir == "" {
+		fmt.Printf("ignore packages.json\n")
+		return nil
+	}
+	if !isSubdirectory(allPackages.BaseDir, optBuildDir) {
+		fmt.Printf("ignore packages.json\n")
 		return nil
 	}
 	var pkgs utils.PackageList
@@ -162,11 +170,13 @@ func savePackages() error {
 	}
 	data, err := json.MarshalIndent(pkgs, "", "  ")
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
 	fname := filepath.Join(allPackages.BaseDir, "packages.json")
 	fmt.Printf("create %s, packages: %d\n", fname, len(allPackages.Packages))
 	if err := os.WriteFile(fname, data, 0666); err != nil {
+		fmt.Println(err)
 		return err
 	}
 	return nil
@@ -189,6 +199,30 @@ func saveAllPackages() {
 	if err := savePackages(); err != nil {
 		fmt.Printf("error: save packages.json failed: %v\n", err)
 	}
+}
+
+/**
+ *	检查 dir 是否是 baseDir 或其子目录
+ */
+func isSubdirectory(dir, baseDir string) bool {
+	if dir == baseDir {
+		return true
+	}
+
+	rel, err := filepath.Rel(baseDir, dir)
+	if err != nil {
+		return false
+	}
+
+	// 如果相对路径不以 ".." 开头，说明 dir 是 baseDir 或其子目录
+	return !filepath.IsAbs(rel) && !startsWithDotDot(rel)
+}
+
+/**
+ *	检查路径是否以 ".." 开头
+ */
+func startsWithDotDot(path string) bool {
+	return len(path) >= 2 && path[0:2] == ".."
 }
 
 /**
