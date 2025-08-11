@@ -120,7 +120,7 @@ bMzLAZ0BM0wxlpDmp1GYVag+Ll3w2o3LXLEB08soABD0wdD03Sp7flkbebgAxd1b
 vwIDAQAB
 -----END PUBLIC KEY-----`
 
-const SHENMA_BASE_URL = "https://zgsm.sangfor.com/shenma/api/v1"
+const SHENMA_BASE_URL = "https://zgsm.sangfor.com/costrict"
 
 func (cfg *UpgradeConfig) Correct() {
 	if cfg.Arch == "" {
