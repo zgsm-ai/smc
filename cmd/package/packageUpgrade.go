@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/zgsm-ai/smc/cmd/common"
@@ -16,6 +17,14 @@ func upgradePackage() error {
 	}
 	cfg := utils.UpgradeConfig{}
 	cfg.PackageName = optPackageName
+	if optPublicKey != "" {
+		// 读取公钥文件内容
+		keyData, err := os.ReadFile(optPublicKey)
+		if err != nil {
+			return fmt.Errorf("failed to read public key file: %v", err)
+		}
+		cfg.PublicKey = string(keyData)
+	}
 	cfg.Correct()
 	curVer, _ := utils.GetLocalVersion(cfg)
 	if optPackageVersion != "" {
@@ -59,10 +68,12 @@ var upgradeCmd = &cobra.Command{
 
 const upgradeExample = `  # upgrade package
   smc package upgrade -p codebase-syncer -v 1.0.0
-  smc package upgrade -p codebase-syncer`
+  smc package upgrade -p codebase-syncer
+  smc package upgrade -p codebase-syncer --public /path/to/public.key`
 
 var optPackageVersion string
 var optPackageName string
+var optPublicKey string
 
 func init() {
 	packageCmd.AddCommand(upgradeCmd)
@@ -71,4 +82,5 @@ func init() {
 
 	upgradeCmd.Flags().StringVarP(&optPackageName, "package", "p", "", "package name")
 	upgradeCmd.Flags().StringVarP(&optPackageVersion, "version", "v", "", "package version")
+	upgradeCmd.Flags().StringVar(&optPublicKey, "public", "", "public key file for package verification")
 }
