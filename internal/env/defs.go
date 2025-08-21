@@ -8,6 +8,7 @@ import (
  * Basic execution environment for smc command family (common components of smc command parameters)
  */
 var (
+	BaseUrl      string //Base URL
 	TaskdAddr    string //Login server address
 	PromptAddr   string //AI-Prompt-Shell service address
 	Username     string //Login username
@@ -61,6 +62,8 @@ func InitEnvs() {
 		"Callback URL for task notifications", "http://localhost:8888/callback", NewString(&Callback))
 	defEnvs.Register("SMC_LISTEN", "listen",
 		"Listening address", ":8888", NewString(&Listen))
+	defEnvs.Register("SMC_BASE_URL", "baseUrl",
+		"Costrict cloud base url", "https://zgsm.sangfor.com", NewString(&BaseUrl))
 
 	defEnvs.Load(ConfigPath(".smc/smc.env"))
 	defEnvs.SetOnChange(func() error {

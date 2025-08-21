@@ -464,12 +464,12 @@ func UpgradePackage(cfg UpgradeConfig, curVer VersionNumber, specVer *VersionNum
  *	保存包描述文件
  */
 func savePackageJson(cfg UpgradeConfig, pkg PackageInfo, data []byte) {
-	packageFileName := filepath.Join(cfg.PackageDir,
-		fmt.Sprintf("%s-%s.json", cfg.PackageName, PrintVersion(pkg.VersionId)))
-	if err := os.WriteFile(packageFileName, data, 0644); err != nil {
-		log.Printf("Write package file(%s) failed: %v", packageFileName, err)
-	}
-	packageFileName = filepath.Join(cfg.PackageDir, fmt.Sprintf("%s.json", cfg.PackageName))
+	// packageFileName := filepath.Join(cfg.PackageDir,
+	// 	fmt.Sprintf("%s-%s.json", cfg.PackageName, PrintVersion(pkg.VersionId)))
+	// if err := os.WriteFile(packageFileName, data, 0644); err != nil {
+	// 	log.Printf("Write package file(%s) failed: %v", packageFileName, err)
+	// }
+	packageFileName := filepath.Join(cfg.PackageDir, fmt.Sprintf("%s.json", cfg.PackageName))
 	if err := os.WriteFile(packageFileName, data, 0644); err != nil {
 		log.Printf("Write package file(%s) failed: %v", packageFileName, err)
 	}

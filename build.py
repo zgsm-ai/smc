@@ -6,14 +6,17 @@ import os, time, subprocess, sys, platform
 # --install
 # --software
 # --protocol
+# --output
+# --app
 opt_debug = False
 opt_install = False
-opt_software = "1.0.250803"
-opt_protocol = "1.0.250803"
+opt_software = "1.0.250813"
 opt_app = "smc"
 opt_os = None
 opt_arch = None
 opt_module = "github.com/zgsm-ai/{0}".format(opt_app)
+opt_output = None
+opt_cgo_enabled=0
 
 def run_cmd(cmd):
     p = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -29,9 +32,9 @@ def get_go_env_vars():
     # Set environment variables based on current platform
     current_system = platform.system().lower()
     if current_system == "windows":
-        return "set GOOS={0}&&set GOARCH={1}&&".format(go_os, go_arch)
+        return "set GOOS={0}&&set GOARCH={1}&&set CGO_ENABLED={2}&&".format(go_os, go_arch, opt_cgo_enabled)
     else:
-        return "GOOS={0} GOARCH={1}".format(go_os, go_arch)
+        return "GOOS={0} GOARCH={1} CGO_ENABLED={2}".format(go_os, go_arch, opt_cgo_enabled)
 
 # Get last tag.
 def last_tag():
@@ -46,7 +49,6 @@ def build_cmd():
     build_flags = []
 
     build_flags.append("-X '{0}/cmd.SoftwareVer={1}'".format(opt_module, opt_software))
-    build_flags.append("-X '{0}/cmd.ProtocolVer={1}'".format(opt_module, opt_protocol))
     last_git_tag = last_tag()
     if last_git_tag != "":
         build_flags.append("-X '{0}/cmd.BuildTag={1}'".format(opt_module, last_git_tag))
@@ -68,16 +70,20 @@ def build_cmd():
     if opt_install:
         return '{0} go install {1} -ldflags "{2}"'.format(go_env, debug_flag, " ".join(build_flags))
     else:
-        return '{0} go build {1} -ldflags "{2}"'.format(go_env, debug_flag, " ".join(build_flags))
+        if opt_output:
+            return '{0} go build {1} -ldflags "{2}" -o {3}'.format(go_env, debug_flag, " ".join(build_flags), opt_output)
+        else:
+            return '{0} go build {1} -ldflags "{2}"'.format(go_env, debug_flag, " ".join(build_flags))
 
 def parse_opts():
     global opt_debug
     global opt_install
-    global opt_protocol
     global opt_software
     global opt_app
     global opt_os
     global opt_arch
+    global opt_output
+    global opt_cgo_enabled
     argc = len(sys.argv)
     if argc == 1:
         return True
@@ -85,14 +91,15 @@ def parse_opts():
     while i < argc:
         arg = sys.argv[i]
         if arg == '-h':
-            print("build.py [--debug] [--install] [--software VER] [--protocol VER] [--app APPNAME] [--os OS] [--arch ARCH]")
+            print("build.py [--debug] [--install] [--software VER] [--app APPNAME] [--os OS] [--arch ARCH] [--output OUTPUT] [--cgo_enabled 0/1]")
             print("  -d,--debug        编译调试版本")
             print("  -i,--install      把程序拷贝到安装目录")
             print("  -s,--software VER 指定软件版本,VER格式:x.x.x,如: 1.1.1210")
-            print("  -p,--protocol VER RESTful API的版本,VER格式:x.x.x,如: 1.1.1210")
             print("  -a,--app APPNAME  当前构建的程序名字")
             print("  --os OS           指定目标操作系统,如: windows, linux, darwin")
             print("  --arch ARCH       指定目标架构,如: amd64, arm64, 386")
+            print("  --output OUTPUT   指定输出文件路径")
+            print("  --cgo_enabled     启用CGO,取值0或1,默认为0")
             return False
         elif arg == '-d' or arg == '--debug':
             opt_debug = True
@@ -108,11 +115,6 @@ def parse_opts():
             if i == argc:
                 raise Exception("--software/-s missing parameter")
             opt_software = sys.argv[i]
-        elif arg == '-p' or arg == '--protocol':
-            i += 1
-            if i == argc:
-                raise Exception("--protocol/-p missing parameter")
-            opt_protocol = sys.argv[i]
         elif arg == '--os':
             i += 1
             if i == argc:
@@ -123,6 +125,19 @@ def parse_opts():
             if i == argc:
                 raise Exception("--arch missing parameter")
             opt_arch = sys.argv[i]
+        elif arg == '--output':
+            i += 1
+            if i == argc:
+                raise Exception("--output missing parameter")
+            opt_output = sys.argv[i]
+        elif arg == '--cgo_enabled':
+            i += 1
+            if i == argc:
+                raise Exception("--cgo_enabled missing parameter")
+            value = sys.argv[i]
+            if value not in ['0', '1']:
+                raise Exception("--cgo_enabled value must be 0 or 1")
+            opt_cgo_enabled = int(value)
         i += 1
     return True
 

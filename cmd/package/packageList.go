@@ -29,9 +29,26 @@ type Package_Columns struct {
 }
 
 /**
+ *	判断包是否已经在包列表中
+ *	基于包名、操作系统、架构和版本判断唯一性
+ */
+func isInPackageList(pkgInfo utils.PackageInfo, pkgList []utils.PackageInfo) bool {
+	for _, pkg := range pkgList {
+		if pkg.PackageName == pkgInfo.PackageName &&
+			pkg.Os == pkgInfo.Os &&
+			pkg.Arch == pkgInfo.Arch &&
+			pkg.VersionId.Major == pkgInfo.VersionId.Major &&
+			pkg.VersionId.Minor == pkgInfo.VersionId.Minor &&
+			pkg.VersionId.Micro == pkgInfo.VersionId.Micro {
+			return true
+		}
+	}
+	return false
+}
+
+/**
  *	List package information
  */
-
 func packageList(packageName string, verbose bool) error {
 	// 获取 .costrict/package 目录路径
 	_, _, packageDir := utils.GetCostrictDir()
@@ -47,24 +64,28 @@ func packageList(packageName string, verbose bool) error {
 		if err != nil {
 			return err
 		}
-
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".json") {
+			return nil
+		}
 		// 只处理 *.json 文件
-		if !d.IsDir() && strings.HasSuffix(d.Name(), ".json") {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return fmt.Errorf("failed to read file '%s': %v", path, err)
-			}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to read file '%s': %v", path, err)
+		}
+		var pkgInfo utils.PackageInfo
+		if err := json.Unmarshal(data, &pkgInfo); err != nil {
+			return fmt.Errorf("failed to unmarshal package info from '%s': %v", path, err)
+		}
+		// 如果指定了包名，则只返回匹配的包
+		if packageName != "" && pkgInfo.PackageName != packageName {
+			return nil
+		}
 
-			var pkgInfo utils.PackageInfo
-			if err := json.Unmarshal(data, &pkgInfo); err != nil {
-				return fmt.Errorf("failed to unmarshal package info from '%s': %v", path, err)
-			}
-
-			// 如果指定了包名，则只返回匹配的包
-			if packageName != "" && pkgInfo.PackageName != packageName {
-				return nil
-			}
-
+		// 检查包是否已经在列表中，确保唯一性
+		if !isInPackageList(pkgInfo, packageInfos) {
 			packageInfos = append(packageInfos, pkgInfo)
 		}
 		return nil

@@ -196,8 +196,10 @@ func saveAllPackages() {
 			fmt.Printf("error: save platforms.json failed: %v\n", err)
 		}
 	}
-	if err := savePackages(); err != nil {
-		fmt.Printf("error: save packages.json failed: %v\n", err)
+	if optPackages {
+		if err := savePackages(); err != nil {
+			fmt.Printf("error: save packages.json failed: %v\n", err)
+		}
 	}
 }
 
@@ -309,14 +311,16 @@ var indexCmd = &cobra.Command{
 }
 
 var optBuildDir string
+var optPackages bool
 
 func init() {
 	packageCmd.AddCommand(indexCmd)
 
 	indexCmd.Example = `  # Scan ./build directory and generate index files based on signed packages
-	 smc package index -b ./build
-	 # Or specify build directory as argument
-	 smc package index ./build`
+  smc package index -b ./build
+  # Or specify build directory as argument
+  smc package index ./build`
 	indexCmd.Flags().SortFlags = false
 	indexCmd.Flags().StringVarP(&optBuildDir, "build", "b", ".", "Build directory: location of package files")
+	indexCmd.Flags().BoolVar(&optPackages, "packages", false, "Generate packages.json file")
 }

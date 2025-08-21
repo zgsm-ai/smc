@@ -40,6 +40,7 @@ func makePackage() error {
 	pkgData.Checksum = md5str
 	pkgData.ChecksumAlgo = "md5"
 	pkgData.Sign = hex.EncodeToString(data)
+	pkgData.Description = optDescription
 	pkgData.VersionId, err = utils.ParseVersion(optVersion)
 	if err != nil {
 		return fmt.Errorf("parse version error: %v", err)
@@ -86,12 +87,13 @@ var optFrom string
 var optKeyFile string
 var optPackage string
 var optType string
+var optDescription string
 
 func init() {
 	packageCmd.AddCommand(packageBuildCmd)
 
 	packageBuildCmd.Example = `  # Sign shenma.exe with private key costrict-private.pem and generate package descriptor package-windows-amd64-1.0.1120.json (using package option)
-  smc package build -f ./shenma.exe -k costrict-private.pem -s windows -a amd64 -v 1.0.1120 -p shenma
+  smc package build -p shenma -f ./shenma.exe -k costrict-private.pem -s windows -a amd64 -v 1.0.1120
   # Same command but using positional argument for package name
   smc package build shenma -f ./shenma.exe -k costrict-private.pem -s windows -a amd64 -v 1.0.1120`
 	packageBuildCmd.Flags().SortFlags = false
@@ -102,6 +104,7 @@ func init() {
 	packageBuildCmd.Flags().StringVarP(&optArch, "arch", "a", runtime.GOARCH, "Target hardware architecture")
 	packageBuildCmd.Flags().StringVarP(&optVersion, "version", "v", "1.0.0", "Package version number(semver)")
 	packageBuildCmd.Flags().StringVarP(&optType, "type", "t", "exec", "Package type: exec/conf")
+	packageBuildCmd.Flags().StringVarP(&optDescription, "description", "d", "", "Package description")
 	packageBuildCmd.Flags().StringVarP(&optOutput, "output", "o", "", "Output .json file")
 	packageBuildCmd.MarkFlagRequired("from")
 	packageBuildCmd.MarkFlagRequired("key")

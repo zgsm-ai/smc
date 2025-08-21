@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zgsm-ai/smc/cmd/common"
+	"github.com/zgsm-ai/smc/internal/env"
 	"github.com/zgsm-ai/smc/internal/utils"
 )
 
@@ -16,6 +17,7 @@ func upgradePackage() error {
 		return err
 	}
 	cfg := utils.UpgradeConfig{}
+	cfg.BaseUrl = env.BaseUrl + "/costrict"
 	cfg.PackageName = optPackageName
 	if optPublicKey != "" {
 		// 读取公钥文件内容

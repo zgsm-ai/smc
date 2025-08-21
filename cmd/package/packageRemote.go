@@ -7,6 +7,7 @@ import (
 
 	"github.com/iancoleman/orderedmap"
 	"github.com/spf13/cobra"
+	"github.com/zgsm-ai/smc/internal/env"
 	"github.com/zgsm-ai/smc/internal/utils"
 )
 
@@ -48,6 +49,7 @@ type RemotePackage_Columns struct {
 	Version     string `json:"version"`
 	Os          string `json:"os"`
 	Arch        string `json:"arch"`
+	Description string `json:"description"`
 }
 
 /**
@@ -76,6 +78,7 @@ func listPackages(verbose bool) error {
 		dataList = append(dataList, ret...)
 	} else {
 		cfg := utils.UpgradeConfig{}
+		cfg.BaseUrl = env.BaseUrl + "/costrict"
 		cfg.Correct()
 		packages, err := utils.GetRemotePackages(cfg)
 		if err != nil {
@@ -101,6 +104,7 @@ func listPackage(packageName string, verbose bool) ([]*orderedmap.OrderedMap, er
 	// 创建升级配置
 	cfg := utils.UpgradeConfig{
 		PackageName: packageName,
+		BaseUrl:     env.BaseUrl + "/costrict",
 	}
 	cfg.Correct()
 
@@ -153,6 +157,7 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 		PackageName: packageName,
 		Os:          os,
 		Arch:        arch,
+		BaseUrl:     env.BaseUrl + "/costrict",
 	}
 	platformCfg.Correct()
 
@@ -167,14 +172,13 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 
 	// 遍历该平台的所有版本
 	for _, ver := range versList.Versions {
-		// verbose模式：显示所有字段
-		row := RemotePackage_Columns_Verbose{}
-		row.PackageName = versList.PackageName
-		row.Os = versList.Os
-		row.Arch = versList.Arch
-		row.Version = utils.PrintVersion(ver.VersionId)
-
 		if verbose {
+			// verbose模式：显示所有字段
+			row := RemotePackage_Columns_Verbose{}
+			row.PackageName = versList.PackageName
+			row.Os = versList.Os
+			row.Arch = versList.Arch
+			row.Version = utils.PrintVersion(ver.VersionId)
 			row.Size = "*"
 			row.Checksum = "*"
 			row.ChecksumAlgo = "*"
@@ -191,9 +195,26 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 					row.Description = pkgInfo.Description
 				}
 			}
+			recordMap, _ := utils.StructToOrderedMap(row)
+			dataList = append(dataList, recordMap)
+		} else {
+			// 非verbose模式：仅显示RemotePackage_Columns包含的字段
+			row := RemotePackage_Columns{}
+			row.PackageName = versList.PackageName
+			row.Os = versList.Os
+			row.Arch = versList.Arch
+			row.Version = utils.PrintVersion(ver.VersionId)
+			row.Description = "*"
+			// 获取版本的详细元数据（仅获取description）
+			if ver.InfoUrl != "" {
+				pkgInfo, err := getPackageDetailInfo(platformCfg.BaseUrl + ver.InfoUrl)
+				if err == nil {
+					row.Description = pkgInfo.Description
+				}
+			}
+			recordMap, _ := utils.StructToOrderedMap(row)
+			dataList = append(dataList, recordMap)
 		}
-		recordMap, _ := utils.StructToOrderedMap(row)
-		dataList = append(dataList, recordMap)
 	}
 	return dataList, nil
 }
