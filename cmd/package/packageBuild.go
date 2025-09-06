@@ -30,7 +30,7 @@ func makePackage() error {
 	}
 	dir, fname := filepath.Split(optFrom)
 
-	pkgData := &utils.PackageInfo{}
+	pkgData := &utils.PackageVersion{}
 	pkgData.Arch = optArch
 	pkgData.Os = optOs
 	pkgData.PackageName = optPackage

@@ -10,7 +10,7 @@ import os, time, subprocess, sys, platform
 # --app
 opt_debug = False
 opt_install = False
-opt_software = "1.0.250813"
+opt_software = "1.1.0"
 opt_app = "smc"
 opt_os = None
 opt_arch = None

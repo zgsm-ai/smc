@@ -1,4 +1,4 @@
-package pkg
+package component
 
 import (
 	"encoding/json"
@@ -29,12 +29,12 @@ func formatSize(size uint64) string {
 /**
  *	获取包详细元数据信息
  */
-func getPackageDetailInfo(infoUrl string) (*utils.PackageInfo, error) {
+func getPackageDetailInfo(infoUrl string) (*utils.PackageVersion, error) {
 	data, err := utils.GetBytes(infoUrl, nil)
 	if err != nil {
 		return nil, err
 	}
-	pkg := &utils.PackageInfo{}
+	pkg := &utils.PackageVersion{}
 	if err = json.Unmarshal(data, pkg); err != nil {
 		return nil, fmt.Errorf("unmarshal package info error: %v", err)
 	}
@@ -56,36 +56,38 @@ type RemotePackage_Columns struct {
  *	Fields displayed in list format (verbose mode)
  */
 type RemotePackage_Columns_Verbose struct {
-	PackageName  string `json:"packageName"`
-	Size         string `json:"size"`
-	Checksum     string `json:"checksum"`
-	ChecksumAlgo string `json:"checksumAlgo"`
-	Version      string `json:"version"`
-	Build        string `json:"build"`
-	Os           string `json:"os"`
-	Arch         string `json:"arch"`
-	Description  string `json:"description"`
+	PackageName string `json:"packageName"`
+	Size        string `json:"size"`
+	Checksum    string `json:"checksum"`
+	Algo        string `json:"checksumAlgo"`
+	Version     string `json:"version"`
+	Build       string `json:"build"`
+	Os          string `json:"os"`
+	Arch        string `json:"arch"`
+	Description string `json:"description"`
 }
 
 func listPackages(verbose bool) error {
 	// 格式化输出版本列表
 	var dataList []*orderedmap.OrderedMap
+	// 获取包列表以检查Details中是否存在该包
+	cfg := utils.UpgradeConfig{}
+	cfg.BaseUrl = env.BaseUrl + "/costrict"
+	cfg.Correct()
+	packages, err := utils.GetRemotePackages(cfg)
+	if err != nil {
+		return err
+	}
+	overview, _ := utils.GetRemoteOverview(cfg)
 	if optRemotePackageName != "" {
-		ret, err := listPackage(optRemotePackageName, verbose)
+		ret, err := listPackage(&overview, optRemotePackageName, verbose)
 		if err != nil {
 			return err
 		}
 		dataList = append(dataList, ret...)
 	} else {
-		cfg := utils.UpgradeConfig{}
-		cfg.BaseUrl = env.BaseUrl + "/costrict"
-		cfg.Correct()
-		packages, err := utils.GetRemotePackages(cfg)
-		if err != nil {
-			return err
-		}
 		for _, pkg := range packages.Packages {
-			ret, err := listPackage(pkg, verbose)
+			ret, err := listPackage(&overview, pkg, verbose)
 			if err != nil {
 				fmt.Printf("error: %v\n", err.Error())
 			} else {
@@ -100,7 +102,13 @@ func listPackages(verbose bool) error {
 /**
  *	List remote package information
  */
-func listPackage(packageName string, verbose bool) ([]*orderedmap.OrderedMap, error) {
+func listPackage(overview *utils.PackagesOverview, packageName string, verbose bool) ([]*orderedmap.OrderedMap, error) {
+	pkg, exist := overview.Packages[packageName]
+	if exist {
+		// 如果包信息在packages-overview.json中存在，直接使用这些信息构建OrderedMap
+		return getPackageFromOverview(packageName, pkg, verbose)
+	}
+
 	// 创建升级配置
 	cfg := utils.UpgradeConfig{
 		PackageName: packageName,
@@ -149,6 +157,64 @@ func listPackage(packageName string, verbose bool) ([]*orderedmap.OrderedMap, er
 }
 
 /**
+ *	从包详细信息构建OrderedMap数据
+ */
+func getPackageFromOverview(packageName string, pkg utils.PackageOverview, verbose bool) ([]*orderedmap.OrderedMap, error) {
+	var dataList []*orderedmap.OrderedMap
+
+	// 遍历所有平台，根据 os 和 arch 参数进行过滤
+	for _, platform := range pkg.Platforms {
+		// 如果 os 和 arch 都指定了，只显示匹配的平台
+		if optRemoteOs != "" && optRemoteArch != "" {
+			if platform.Os != optRemoteOs || platform.Arch != optRemoteArch {
+				continue
+			}
+		} else if optRemoteOs != "" {
+			// 如果只指定了 os，只显示匹配 os 的平台
+			if platform.Os != optRemoteOs {
+				continue
+			}
+		} else if optRemoteArch != "" {
+			// 如果只指定了 arch，只显示匹配 arch 的平台
+			if platform.Arch != optRemoteArch {
+				continue
+			}
+		}
+		// 如果 os 和 arch 都未指定，显示所有平台（不进行过滤）
+
+		// 遍历该平台的所有版本
+		for _, version := range platform.Versions {
+			if verbose {
+				// verbose模式：显示所有字段
+				row := RemotePackage_Columns_Verbose{}
+				row.PackageName = packageName
+				row.Os = platform.Os
+				row.Arch = platform.Arch
+				row.Version = utils.PrintVersion(version.VersionId)
+				row.Size = formatSize(version.Size)
+				row.Checksum = "*"
+				row.Algo = "*"
+				row.Build = version.Build
+				row.Description = version.Description
+				recordMap, _ := utils.StructToOrderedMap(row)
+				dataList = append(dataList, recordMap)
+			} else {
+				// 非verbose模式：仅显示RemotePackage_Columns包含的字段
+				row := RemotePackage_Columns{}
+				row.PackageName = packageName
+				row.Os = platform.Os
+				row.Arch = platform.Arch
+				row.Version = utils.PrintVersion(version.VersionId)
+				row.Description = version.Description
+				recordMap, _ := utils.StructToOrderedMap(row)
+				dataList = append(dataList, recordMap)
+			}
+		}
+	}
+	return dataList, nil
+}
+
+/**
  *	搜集单个平台信息
  */
 func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.OrderedMap, error) {
@@ -181,7 +247,7 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 			row.Version = utils.PrintVersion(ver.VersionId)
 			row.Size = "*"
 			row.Checksum = "*"
-			row.ChecksumAlgo = "*"
+			row.Algo = "*"
 			row.Build = "*"
 			row.Description = "*"
 			// 获取版本的详细元数据
@@ -190,7 +256,7 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 				if err == nil {
 					row.Size = formatSize(pkgInfo.Size)
 					row.Checksum = pkgInfo.Checksum
-					row.ChecksumAlgo = pkgInfo.ChecksumAlgo
+					row.Algo = pkgInfo.ChecksumAlgo
 					row.Build = pkgInfo.Build
 					row.Description = pkgInfo.Description
 				}
@@ -219,8 +285,8 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 	return dataList, nil
 }
 
-// packageRemoteCmd represents the 'smc package remote' command
-var packageRemoteCmd = &cobra.Command{
+// remoteCmd represents the 'smc package remote' command
+var remoteCmd = &cobra.Command{
 	Use:   "remote {package | -p package} [--os os] [--arch arch]",
 	Short: "List remote packages",
 	Long:  `Lists remote packages available for download`,
@@ -248,11 +314,11 @@ var optRemoteOs string
 var optRemoteArch string
 
 func init() {
-	packageCmd.AddCommand(packageRemoteCmd)
-	packageRemoteCmd.Flags().SortFlags = false
-	packageRemoteCmd.Example = packageRemoteExample
-	packageRemoteCmd.Flags().StringVarP(&optRemotePackageName, "package", "p", "", "Package name")
-	packageRemoteCmd.Flags().BoolVarP(&optRemoteVerbose, "verbose", "v", false, "Show details")
-	packageRemoteCmd.Flags().StringVar(&optRemoteOs, "os", "", "Target operating system")
-	packageRemoteCmd.Flags().StringVar(&optRemoteArch, "arch", "", "Target architecture")
+	componentCmd.AddCommand(remoteCmd)
+	remoteCmd.Flags().SortFlags = false
+	remoteCmd.Example = packageRemoteExample
+	remoteCmd.Flags().StringVarP(&optRemotePackageName, "package", "p", "", "Package name")
+	remoteCmd.Flags().BoolVarP(&optRemoteVerbose, "verbose", "v", false, "Show details")
+	remoteCmd.Flags().StringVar(&optRemoteOs, "os", "", "Target operating system")
+	remoteCmd.Flags().StringVar(&optRemoteArch, "arch", "", "Target architecture")
 }

@@ -14,16 +14,19 @@ import (
  *	platform.json
  */
 type PlatformNode struct {
-	BaseDir string
-	Plat    utils.PlatformInfo
+	BaseDir  string
+	Os       string
+	Arch     string
+	Newest   *utils.PackageVersion
+	Versions []*utils.PackageVersion
 }
 
 /**
  *	platforms.json
  */
-type PlatformsNode struct {
-	PackageName string
+type PackageNode struct {
 	BaseDir     string
+	PackageName string
 	Platforms   map[string]*PlatformNode
 }
 
@@ -32,14 +35,14 @@ type PlatformsNode struct {
  */
 type PackagesNode struct {
 	BaseDir  string
-	Packages map[string]*PlatformsNode
+	Packages map[string]*PackageNode
 }
 
 /**
  *	Package tree
  */
 var allPackages PackagesNode = PackagesNode{
-	Packages: make(map[string]*PlatformsNode),
+	Packages: make(map[string]*PackageNode),
 }
 
 /**
@@ -47,51 +50,41 @@ var allPackages PackagesNode = PackagesNode{
  */
 func addPackage(fpath string) {
 	//<packageName>/windows/amd64/1.1.1125/package.json
-	pkgData := &utils.PackageInfo{}
+	pkgVer := &utils.PackageVersion{}
 	bytes, err := os.ReadFile(fpath)
 	if err != nil {
 		fmt.Printf("read error, ignore %s\n", fpath)
 		return
 	}
-	if err = json.Unmarshal(bytes, &pkgData); err != nil {
+	if err = json.Unmarshal(bytes, &pkgVer); err != nil {
 		fmt.Printf("unmarshal error, ignore %s\n", fpath)
 		return
 	}
 	fmt.Printf("found package.json: %s\n", fpath)
-	ver := &utils.VersionAddr{}
-	ver.VersionId = pkgData.VersionId
-	verStr := utils.PrintVersion(ver.VersionId)
-	ver.AppUrl = fmt.Sprintf("/%s/%s/%s/%s/%s",
-		pkgData.PackageName, pkgData.Os, pkgData.Arch, verStr, pkgData.FileName)
-	ver.InfoUrl = fmt.Sprintf("/%s/%s/%s/%s/package.json",
-		pkgData.PackageName, pkgData.Os, pkgData.Arch, verStr)
 
 	if len(allPackages.Packages) == 0 {
 		allPackages.BaseDir = getPackagesDir(fpath)
 	}
-	platforms, ok := allPackages.Packages[pkgData.PackageName]
+	pkg, ok := allPackages.Packages[pkgVer.PackageName]
 	if !ok {
-		platforms = &PlatformsNode{
-			PackageName: pkgData.PackageName,
+		pkg = &PackageNode{
+			PackageName: pkgVer.PackageName,
 			BaseDir:     getPlatformsDir(fpath),
 			Platforms:   make(map[string]*PlatformNode),
 		}
-		allPackages.Packages[pkgData.PackageName] = platforms
+		allPackages.Packages[pkgVer.PackageName] = pkg
 	}
-	keyStr := fmt.Sprintf("%s-%s", pkgData.Os, pkgData.Arch)
-	platform, ok := platforms.Platforms[keyStr]
+	keyStr := fmt.Sprintf("%s-%s", pkgVer.Os, pkgVer.Arch)
+	platform, ok := pkg.Platforms[keyStr]
 	if !ok {
 		platform = &PlatformNode{
 			BaseDir: getPlatformDir(fpath),
-			Plat: utils.PlatformInfo{
-				PackageName: pkgData.PackageName,
-				Os:          pkgData.Os,
-				Arch:        pkgData.Arch,
-			},
+			Os:      pkgVer.Os,
+			Arch:    pkgVer.Arch,
 		}
-		platforms.Platforms[keyStr] = platform
+		pkg.Platforms[keyStr] = platform
 	}
-	platform.Plat.Versions = append(platform.Plat.Versions, *ver)
+	platform.Versions = append(platform.Versions, pkgVer)
 }
 
 /**
@@ -100,27 +93,29 @@ func addPackage(fpath string) {
 func getNewest() {
 	for _, pkg := range allPackages.Packages {
 		for _, plat := range pkg.Platforms {
-			newest := utils.VersionAddr{}
-			for _, v := range plat.Plat.Versions {
-				if utils.CompareVersion(v.VersionId, newest.VersionId) > 0 {
+			var newest *utils.PackageVersion
+			for _, v := range plat.Versions {
+				if newest == nil || utils.CompareVersion(v.VersionId, newest.VersionId) > 0 {
 					newest = v
 				}
 			}
-			plat.Plat.Newest = newest
+			plat.Newest = newest
 		}
 	}
 }
 
-func savePlatform(plat *PlatformNode) error {
-	data, err := json.MarshalIndent(plat.Plat, "", "  ")
+func savePlatform(pkname string, node *PlatformNode) error {
+	plat := getPlatformInfo(pkname, node)
+
+	data, err := json.MarshalIndent(plat, "", "  ")
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-	fpath := filepath.Join(plat.BaseDir, "platform.json")
+	fpath := filepath.Join(node.BaseDir, "platform.json")
 
 	fmt.Printf("create %s, versions: %d, newest: %s\n", fpath,
-		len(plat.Plat.Versions), utils.PrintVersion(plat.Plat.Newest.VersionId))
+		len(plat.Versions), utils.PrintVersion(plat.Newest.VersionId))
 	if err = os.WriteFile(fpath, data, 0666); err != nil {
 		fmt.Println(err)
 		return err
@@ -128,18 +123,18 @@ func savePlatform(plat *PlatformNode) error {
 	return nil
 }
 
-func savePlatforms(plats *PlatformsNode) error {
+func savePlatforms(plats *PackageNode) error {
 	fpath := filepath.Join(plats.BaseDir, "platforms.json")
 	if !isSubdirectory(plats.BaseDir, optBuildDir) {
 		fmt.Printf("ignore %s\n", fpath)
 		return nil
 	}
-	var platforms utils.PlatformList
+	var platforms utils.PackageDirectory
 	platforms.PackageName = plats.PackageName
 	for _, v := range plats.Platforms {
 		platforms.Platforms = append(platforms.Platforms, utils.PlatformId{
-			Os:   v.Plat.Os,
-			Arch: v.Plat.Arch,
+			Os:   v.Os,
+			Arch: v.Arch,
 		})
 	}
 	fmt.Printf("create %s, platforms: %d\n", fpath, len(platforms.Platforms))
@@ -155,7 +150,62 @@ func savePlatforms(plats *PlatformsNode) error {
 	return nil
 }
 
-func savePackages() error {
+func getVersionAddr(pkgVer *utils.PackageVersion) utils.VersionAddr {
+	ver := &utils.VersionAddr{}
+	ver.VersionId = pkgVer.VersionId
+	verStr := utils.PrintVersion(ver.VersionId)
+	ver.AppUrl = fmt.Sprintf("/%s/%s/%s/%s/%s",
+		pkgVer.PackageName, pkgVer.Os, pkgVer.Arch, verStr, pkgVer.FileName)
+	ver.InfoUrl = fmt.Sprintf("/%s/%s/%s/%s/package.json",
+		pkgVer.PackageName, pkgVer.Os, pkgVer.Arch, verStr)
+	return *ver
+}
+
+func getVersionNode(pkgVer *utils.PackageVersion) utils.VersionOverview {
+	node := utils.VersionOverview{}
+
+	node.VersionId = pkgVer.VersionId
+	node.PackageType = pkgVer.PackageType
+	node.Size = pkgVer.Size
+	node.FileName = pkgVer.FileName
+	node.Description = pkgVer.Description
+	node.Build = pkgVer.Build
+	return node
+}
+
+func getPlatformInfo(pkname string, node *PlatformNode) utils.PlatformInfo {
+	var plat utils.PlatformInfo
+	plat.Arch = node.Arch
+	plat.Os = node.Os
+	plat.PackageName = pkname
+	plat.Newest = getVersionAddr(node.Newest)
+	for _, v := range node.Versions {
+		plat.Versions = append(plat.Versions, getVersionAddr(v))
+	}
+	return plat
+}
+
+func getPlatformTree(node *PlatformNode) utils.PlatformOverview {
+	var tree utils.PlatformOverview
+	tree.Arch = node.Arch
+	tree.Os = node.Os
+	for _, v := range node.Versions {
+		tree.Versions = append(tree.Versions, getVersionNode(v))
+	}
+	return tree
+}
+
+func getPackageTree(p *PackageNode) utils.PackageOverview {
+	var tree utils.PackageOverview
+	tree.PackageName = p.PackageName
+	for _, pl := range p.Platforms {
+		plat := getPlatformTree(pl)
+		tree.Platforms = append(tree.Platforms, plat)
+	}
+	return tree
+}
+
+func savePackageList() error {
 	if allPackages.BaseDir == "" {
 		fmt.Printf("ignore packages.json\n")
 		return nil
@@ -164,16 +214,44 @@ func savePackages() error {
 		fmt.Printf("ignore packages.json\n")
 		return nil
 	}
-	var pkgs utils.PackageList
+	var list utils.PackageList
 	for _, p := range allPackages.Packages {
-		pkgs.Packages = append(pkgs.Packages, p.PackageName)
+		list.Packages = append(list.Packages, p.PackageName)
 	}
-	data, err := json.MarshalIndent(pkgs, "", "  ")
+	data, err := json.MarshalIndent(list, "", "  ")
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
 	fname := filepath.Join(allPackages.BaseDir, "packages.json")
+	fmt.Printf("create %s, packages: %d\n", fname, len(allPackages.Packages))
+	if err := os.WriteFile(fname, data, 0666); err != nil {
+		fmt.Println(err)
+		return err
+	}
+	return nil
+}
+
+func savePackagesOverview() error {
+	if allPackages.BaseDir == "" {
+		fmt.Printf("ignore packages-overview.json\n")
+		return nil
+	}
+	if !isSubdirectory(allPackages.BaseDir, optBuildDir) {
+		fmt.Printf("ignore packages-overview.json\n")
+		return nil
+	}
+	var overview utils.PackagesOverview
+	overview.Packages = make(map[string]utils.PackageOverview)
+	for _, p := range allPackages.Packages {
+		overview.Packages[p.PackageName] = getPackageTree(p)
+	}
+	data, err := json.MarshalIndent(overview, "", "  ")
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	fname := filepath.Join(allPackages.BaseDir, "packages-overview.json")
 	fmt.Printf("create %s, packages: %d\n", fname, len(allPackages.Packages))
 	if err := os.WriteFile(fname, data, 0666); err != nil {
 		fmt.Println(err)
@@ -188,7 +266,7 @@ func savePackages() error {
 func saveAllPackages() {
 	for _, pkg := range allPackages.Packages {
 		for _, plat := range pkg.Platforms {
-			if err := savePlatform(plat); err != nil {
+			if err := savePlatform(pkg.PackageName, plat); err != nil {
 				fmt.Printf("error: save platform.json failed: %v\n", err)
 			}
 		}
@@ -197,8 +275,13 @@ func saveAllPackages() {
 		}
 	}
 	if optPackages {
-		if err := savePackages(); err != nil {
+		if err := savePackageList(); err != nil {
 			fmt.Printf("error: save packages.json failed: %v\n", err)
+		}
+	}
+	if optOverview {
+		if err := savePackagesOverview(); err != nil {
+			fmt.Printf("error: save packages-overview.json failed: %v\n", err)
 		}
 	}
 }
@@ -312,6 +395,7 @@ var indexCmd = &cobra.Command{
 
 var optBuildDir string
 var optPackages bool
+var optOverview bool
 
 func init() {
 	packageCmd.AddCommand(indexCmd)
@@ -323,4 +407,5 @@ func init() {
 	indexCmd.Flags().SortFlags = false
 	indexCmd.Flags().StringVarP(&optBuildDir, "build", "b", ".", "Build directory: location of package files")
 	indexCmd.Flags().BoolVar(&optPackages, "packages", false, "Generate packages.json file")
+	indexCmd.Flags().BoolVar(&optOverview, "overview", false, "Generate packages-overview.json file")
 }

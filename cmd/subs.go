@@ -5,6 +5,7 @@ package cmd
 
 import (
 	_ "github.com/zgsm-ai/smc/cmd/cert"
+	_ "github.com/zgsm-ai/smc/cmd/component"
 	_ "github.com/zgsm-ai/smc/cmd/config"
 	_ "github.com/zgsm-ai/smc/cmd/extension"
 	_ "github.com/zgsm-ai/smc/cmd/package"

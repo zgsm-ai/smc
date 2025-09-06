@@ -1,4 +1,4 @@
-package pkg
+package component
 
 import (
 	"encoding/json"
@@ -32,7 +32,7 @@ type Package_Columns struct {
  *	判断包是否已经在包列表中
  *	基于包名、操作系统、架构和版本判断唯一性
  */
-func isInPackageList(pkgInfo utils.PackageInfo, pkgList []utils.PackageInfo) bool {
+func isInPackageList(pkgInfo utils.PackageVersion, pkgList []utils.PackageVersion) bool {
 	for _, pkg := range pkgList {
 		if pkg.PackageName == pkgInfo.PackageName &&
 			pkg.Os == pkgInfo.Os &&
@@ -47,19 +47,16 @@ func isInPackageList(pkgInfo utils.PackageInfo, pkgList []utils.PackageInfo) boo
 }
 
 /**
- *	List package information
+ *	扫描目录并收集包信息
  */
-func packageList(packageName string, verbose bool) error {
-	// 获取 .costrict/package 目录路径
-	_, _, packageDir := utils.GetCostrictDir()
-
+func scanPackageDirectory(packageDir string, packageName string) ([]utils.PackageVersion, error) {
 	// 检查目录是否存在
 	if _, err := os.Stat(packageDir); os.IsNotExist(err) {
-		return fmt.Errorf("package directory '%s' does not exist", packageDir)
+		return nil, err
 	}
 
 	// 遍历目录中的 *.json 文件
-	var packageInfos []utils.PackageInfo
+	var packageInfos []utils.PackageVersion
 	err := filepath.WalkDir(packageDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -75,7 +72,7 @@ func packageList(packageName string, verbose bool) error {
 		if err != nil {
 			return fmt.Errorf("failed to read file '%s': %v", path, err)
 		}
-		var pkgInfo utils.PackageInfo
+		var pkgInfo utils.PackageVersion
 		if err := json.Unmarshal(data, &pkgInfo); err != nil {
 			return fmt.Errorf("failed to unmarshal package info from '%s': %v", path, err)
 		}
@@ -92,11 +89,24 @@ func packageList(packageName string, verbose bool) error {
 	})
 
 	if err != nil {
-		return err
+		return nil, err
 	}
+	return packageInfos, nil
+}
 
-	if len(packageInfos) == 0 {
-		return fmt.Errorf("no packages found in '%s'", packageDir)
+/**
+ *	List package information
+ */
+func packageList(packageName string, verbose bool) error {
+	// 获取 .costrict/package 目录路径
+	cfg := utils.UpgradeConfig{}
+	cfg.Correct()
+	packageDir := cfg.PackageDir
+
+	// 扫描目录并收集包信息
+	packageInfos, err := scanPackageDirectory(packageDir, packageName)
+	if err != nil && !os.IsNotExist(err) {
+		return err
 	}
 
 	// 如果指定了包名且只有一个包，显示详细信息
@@ -158,7 +168,7 @@ var optListPackageName string
 var optListVerbose bool
 
 func init() {
-	packageCmd.AddCommand(packageListCmd)
+	componentCmd.AddCommand(packageListCmd)
 	packageListCmd.Flags().SortFlags = false
 	packageListCmd.Example = packageListExample
 	packageListCmd.Flags().StringVarP(&optListPackageName, "package", "p", "", "Package name")
