@@ -129,14 +129,7 @@ func savePlatforms(plats *PackageNode) error {
 		fmt.Printf("ignore %s\n", fpath)
 		return nil
 	}
-	var platforms utils.PackageDirectory
-	platforms.PackageName = plats.PackageName
-	for _, v := range plats.Platforms {
-		platforms.Platforms = append(platforms.Platforms, utils.PlatformId{
-			Os:   v.Os,
-			Arch: v.Arch,
-		})
-	}
+	platforms := getPackageOverview(plats)
 	fmt.Printf("create %s, platforms: %d\n", fpath, len(platforms.Platforms))
 	data, err := json.MarshalIndent(platforms, "", "  ")
 	if err != nil {
@@ -154,23 +147,12 @@ func getVersionAddr(pkgVer *utils.PackageVersion) utils.VersionAddr {
 	ver := &utils.VersionAddr{}
 	ver.VersionId = pkgVer.VersionId
 	verStr := utils.PrintVersion(ver.VersionId)
+	_, fname := filepath.Split(pkgVer.FileName)
 	ver.AppUrl = fmt.Sprintf("/%s/%s/%s/%s/%s",
-		pkgVer.PackageName, pkgVer.Os, pkgVer.Arch, verStr, pkgVer.FileName)
+		pkgVer.PackageName, pkgVer.Os, pkgVer.Arch, verStr, fname)
 	ver.InfoUrl = fmt.Sprintf("/%s/%s/%s/%s/package.json",
 		pkgVer.PackageName, pkgVer.Os, pkgVer.Arch, verStr)
 	return *ver
-}
-
-func getVersionNode(pkgVer *utils.PackageVersion) utils.VersionOverview {
-	node := utils.VersionOverview{}
-
-	node.VersionId = pkgVer.VersionId
-	node.PackageType = pkgVer.PackageType
-	node.Size = pkgVer.Size
-	node.FileName = pkgVer.FileName
-	node.Description = pkgVer.Description
-	node.Build = pkgVer.Build
-	return node
 }
 
 func getPlatformInfo(pkname string, node *PlatformNode) utils.PlatformInfo {
@@ -185,24 +167,43 @@ func getPlatformInfo(pkname string, node *PlatformNode) utils.PlatformInfo {
 	return plat
 }
 
-func getPlatformTree(node *PlatformNode) utils.PlatformOverview {
-	var tree utils.PlatformOverview
-	tree.Arch = node.Arch
-	tree.Os = node.Os
-	for _, v := range node.Versions {
-		tree.Versions = append(tree.Versions, getVersionNode(v))
-	}
-	return tree
+func getVersionOverview(pkgVer *utils.PackageVersion) utils.VersionOverview {
+	ov := utils.VersionOverview{}
+
+	ov.VersionId = pkgVer.VersionId
+	ov.Size = pkgVer.Size
+	ov.Description = pkgVer.Description
+	ov.Build = pkgVer.Build
+	ov.PackageType = pkgVer.PackageType
+	ov.FileName = pkgVer.FileName
+	return ov
 }
 
-func getPackageTree(p *PackageNode) utils.PackageOverview {
-	var tree utils.PackageOverview
-	tree.PackageName = p.PackageName
-	for _, pl := range p.Platforms {
-		plat := getPlatformTree(pl)
-		tree.Platforms = append(tree.Platforms, plat)
+func getPlatformOverview(node *PlatformNode) utils.PlatformOverview {
+	var ov utils.PlatformOverview
+	ov.Arch = node.Arch
+	ov.Os = node.Os
+	if node.Newest != nil {
+		ov.Newest = getVersionOverview(node.Newest)
 	}
-	return tree
+	for _, v := range node.Versions {
+		ov.Versions = append(ov.Versions, getVersionOverview(v))
+	}
+	return ov
+}
+
+func getPackageOverview(p *PackageNode) utils.PackageOverview {
+	var ov utils.PackageOverview
+	ov.PackageName = p.PackageName
+	ov.Overviews = make(map[string]utils.PlatformOverview)
+	for k, v := range p.Platforms {
+		ov.Platforms = append(ov.Platforms, utils.PlatformId{
+			Os:   v.Os,
+			Arch: v.Arch,
+		})
+		ov.Overviews[k] = getPlatformOverview(v)
+	}
+	return ov
 }
 
 func savePackageList() error {
@@ -232,34 +233,6 @@ func savePackageList() error {
 	return nil
 }
 
-func savePackagesOverview() error {
-	if allPackages.BaseDir == "" {
-		fmt.Printf("ignore packages-overview.json\n")
-		return nil
-	}
-	if !isSubdirectory(allPackages.BaseDir, optBuildDir) {
-		fmt.Printf("ignore packages-overview.json\n")
-		return nil
-	}
-	var overview utils.PackagesOverview
-	overview.Packages = make(map[string]utils.PackageOverview)
-	for _, p := range allPackages.Packages {
-		overview.Packages[p.PackageName] = getPackageTree(p)
-	}
-	data, err := json.MarshalIndent(overview, "", "  ")
-	if err != nil {
-		fmt.Println(err)
-		return err
-	}
-	fname := filepath.Join(allPackages.BaseDir, "packages-overview.json")
-	fmt.Printf("create %s, packages: %d\n", fname, len(allPackages.Packages))
-	if err := os.WriteFile(fname, data, 0666); err != nil {
-		fmt.Println(err)
-		return err
-	}
-	return nil
-}
-
 /**
  *	Save platforms.json, platform.json files to the directory specified by --build
  */
@@ -277,11 +250,6 @@ func saveAllPackages() {
 	if optPackages {
 		if err := savePackageList(); err != nil {
 			fmt.Printf("error: save packages.json failed: %v\n", err)
-		}
-	}
-	if optOverview {
-		if err := savePackagesOverview(); err != nil {
-			fmt.Printf("error: save packages-overview.json failed: %v\n", err)
 		}
 	}
 }
@@ -395,7 +363,6 @@ var indexCmd = &cobra.Command{
 
 var optBuildDir string
 var optPackages bool
-var optOverview bool
 
 func init() {
 	packageCmd.AddCommand(indexCmd)
@@ -407,5 +374,4 @@ func init() {
 	indexCmd.Flags().SortFlags = false
 	indexCmd.Flags().StringVarP(&optBuildDir, "build", "b", ".", "Build directory: location of package files")
 	indexCmd.Flags().BoolVar(&optPackages, "packages", false, "Generate packages.json file")
-	indexCmd.Flags().BoolVar(&optOverview, "overview", false, "Generate packages-overview.json file")
 }

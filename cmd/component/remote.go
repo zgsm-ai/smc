@@ -78,16 +78,15 @@ func listPackages(verbose bool) error {
 	if err != nil {
 		return err
 	}
-	overview, _ := utils.GetRemoteOverview(cfg)
 	if optRemotePackageName != "" {
-		ret, err := listPackage(&overview, optRemotePackageName, verbose)
+		ret, err := listPackage(optRemotePackageName, verbose)
 		if err != nil {
 			return err
 		}
 		dataList = append(dataList, ret...)
 	} else {
 		for _, pkg := range packages.Packages {
-			ret, err := listPackage(&overview, pkg, verbose)
+			ret, err := listPackage(pkg, verbose)
 			if err != nil {
 				fmt.Printf("error: %v\n", err.Error())
 			} else {
@@ -102,14 +101,7 @@ func listPackages(verbose bool) error {
 /**
  *	List remote package information
  */
-func listPackage(overview *utils.PackagesOverview, packageName string, verbose bool) ([]*orderedmap.OrderedMap, error) {
-	pkg, exist := overview.Packages[packageName]
-	if exist {
-		// 如果包信息在packages-overview.json中存在，直接使用这些信息构建OrderedMap
-		return getPackageFromOverview(packageName, pkg, verbose)
-	}
-
-	// 创建升级配置
+func listPackage(packageName string, verbose bool) ([]*orderedmap.OrderedMap, error) {
 	cfg := utils.UpgradeConfig{
 		PackageName: packageName,
 		BaseUrl:     env.BaseUrl + "/costrict",
@@ -117,41 +109,39 @@ func listPackage(overview *utils.PackagesOverview, packageName string, verbose b
 	cfg.Correct()
 
 	// 获取该软件包支持的所有平台
-	platformList, err := utils.GetRemotePlatforms(cfg)
+	pkg, err := utils.GetRemotePlatforms(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get remote platforms: %v", err)
 	}
-
 	// 格式化输出版本列表
 	var dataList []*orderedmap.OrderedMap
-
 	// 遍历所有支持的平台，根据 os 和 arch 参数进行过滤
-	for _, platform := range platformList.Platforms {
-		// 如果 os 和 arch 都指定了，只显示匹配的平台
-		if optRemoteOs != "" && optRemoteArch != "" {
-			if platform.Os != optRemoteOs || platform.Arch != optRemoteArch {
-				continue
-			}
-		} else if optRemoteOs != "" {
-			// 如果只指定了 os，只显示匹配 os 的平台
-			if platform.Os != optRemoteOs {
-				continue
-			}
-		} else if optRemoteArch != "" {
-			// 如果只指定了 arch，只显示匹配 arch 的平台
-			if platform.Arch != optRemoteArch {
-				continue
+	for _, platform := range pkg.Platforms {
+		if optRemoteOs != "" && platform.Os != optRemoteOs { // 如果只指定了 os，只显示匹配 os 的平台
+			continue
+		}
+		if optRemoteArch != "" && platform.Arch != optRemoteArch { // 如果只指定了 arch，只显示匹配 arch 的平台
+			continue
+		}
+		var pov *utils.PlatformOverview
+		if pkg.Overviews != nil {
+			ov, exists := pkg.Overviews[fmt.Sprintf("%s-%s", platform.Os, platform.Arch)]
+			if exists {
+				pov = &ov
 			}
 		}
-		// 如果 os 和 arch 都未指定，显示所有平台（不进行过滤）
-
-		// 调用 listPlatform 函数搜集单个平台信息
-		platformData, err := listPlatform(packageName, platform.Os, platform.Arch, verbose)
+		var platData []*orderedmap.OrderedMap
+		if pov != nil {
+			platData, err = getPlatform(packageName, pov, verbose)
+		} else {
+			// 调用 listPlatform 函数搜集单个平台信息
+			platData, err = listPlatform(packageName, platform.Os, platform.Arch, verbose)
+		}
 		if err != nil {
 			fmt.Printf("Warning: failed to get platform data for %s/%s: %v\n", platform.Os, platform.Arch, err)
 			continue
 		}
-		dataList = append(dataList, platformData...)
+		dataList = append(dataList, platData...)
 	}
 	return dataList, nil
 }
@@ -159,58 +149,38 @@ func listPackage(overview *utils.PackagesOverview, packageName string, verbose b
 /**
  *	从包详细信息构建OrderedMap数据
  */
-func getPackageFromOverview(packageName string, pkg utils.PackageOverview, verbose bool) ([]*orderedmap.OrderedMap, error) {
+func getPlatform(packageName string, pov *utils.PlatformOverview, verbose bool) ([]*orderedmap.OrderedMap, error) {
 	var dataList []*orderedmap.OrderedMap
 
-	// 遍历所有平台，根据 os 和 arch 参数进行过滤
-	for _, platform := range pkg.Platforms {
-		// 如果 os 和 arch 都指定了，只显示匹配的平台
-		if optRemoteOs != "" && optRemoteArch != "" {
-			if platform.Os != optRemoteOs || platform.Arch != optRemoteArch {
-				continue
-			}
-		} else if optRemoteOs != "" {
-			// 如果只指定了 os，只显示匹配 os 的平台
-			if platform.Os != optRemoteOs {
-				continue
-			}
-		} else if optRemoteArch != "" {
-			// 如果只指定了 arch，只显示匹配 arch 的平台
-			if platform.Arch != optRemoteArch {
-				continue
-			}
-		}
-		// 如果 os 和 arch 都未指定，显示所有平台（不进行过滤）
-
-		// 遍历该平台的所有版本
-		for _, version := range platform.Versions {
-			if verbose {
-				// verbose模式：显示所有字段
-				row := RemotePackage_Columns_Verbose{}
-				row.PackageName = packageName
-				row.Os = platform.Os
-				row.Arch = platform.Arch
-				row.Version = utils.PrintVersion(version.VersionId)
-				row.Size = formatSize(version.Size)
-				row.Checksum = "*"
-				row.Algo = "*"
-				row.Build = version.Build
-				row.Description = version.Description
-				recordMap, _ := utils.StructToOrderedMap(row)
-				dataList = append(dataList, recordMap)
-			} else {
-				// 非verbose模式：仅显示RemotePackage_Columns包含的字段
-				row := RemotePackage_Columns{}
-				row.PackageName = packageName
-				row.Os = platform.Os
-				row.Arch = platform.Arch
-				row.Version = utils.PrintVersion(version.VersionId)
-				row.Description = version.Description
-				recordMap, _ := utils.StructToOrderedMap(row)
-				dataList = append(dataList, recordMap)
-			}
+	// 遍历该平台的所有版本
+	for _, version := range pov.Versions {
+		if verbose {
+			// verbose模式：显示所有字段
+			row := RemotePackage_Columns_Verbose{}
+			row.PackageName = packageName
+			row.Os = pov.Os
+			row.Arch = pov.Arch
+			row.Version = utils.PrintVersion(version.VersionId)
+			row.Size = formatSize(version.Size)
+			row.Checksum = "*"
+			row.Algo = "*"
+			row.Build = version.Build
+			row.Description = version.Description
+			recordMap, _ := utils.StructToOrderedMap(row)
+			dataList = append(dataList, recordMap)
+		} else {
+			// 非verbose模式：仅显示RemotePackage_Columns包含的字段
+			row := RemotePackage_Columns{}
+			row.PackageName = packageName
+			row.Os = pov.Os
+			row.Arch = pov.Arch
+			row.Version = utils.PrintVersion(version.VersionId)
+			row.Description = version.Description
+			recordMap, _ := utils.StructToOrderedMap(row)
+			dataList = append(dataList, recordMap)
 		}
 	}
+
 	return dataList, nil
 }
 

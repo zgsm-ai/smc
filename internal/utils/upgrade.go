@@ -42,18 +42,18 @@ type VersionNumber struct {
  *	包版本的描述&签名信息，用于验证包的正确性
  */
 type PackageVersion struct {
-	PackageName  string        `json:"packageName"`    //包名字
-	PackageType  PackageType   `json:"packageType"`    //包类型: exec/conf
-	FileName     string        `json:"fileName"`       //被打包的文件的名字
-	Os           string        `json:"os"`             //操作系统名:linux/windows
-	Arch         string        `json:"arch"`           //硬件架构
-	Size         uint64        `json:"size,omitempty"` //包文件大小
-	Checksum     string        `json:"checksum"`       //Md5散列值
-	Sign         string        `json:"sign"`           //签名，使用私钥签的名，需要用对应公钥验证
-	ChecksumAlgo string        `json:"checksumAlgo"`   //固定为“md5”
-	VersionId    VersionNumber `json:"versionId"`      //版本号，采用SemVer标准
-	Build        string        `json:"build"`          //构建信息：Tag/Branch信息 CommitID BuildTime
-	Description  string        `json:"description"`    //版本描述，含有更丰富的可读信息
+	PackageName  string        `json:"packageName"`  //包名字
+	PackageType  PackageType   `json:"packageType"`  //包类型: exec/conf
+	FileName     string        `json:"fileName"`     //被打包的文件的相对路径(相对.costrict目录,为空则安装到默认路径)
+	Os           string        `json:"os"`           //操作系统名:linux/windows
+	Arch         string        `json:"arch"`         //硬件架构
+	Size         uint64        `json:"size"`         //包文件大小
+	Checksum     string        `json:"checksum"`     //Md5散列值
+	Sign         string        `json:"sign"`         //签名，使用私钥签的名，需要用对应公钥验证
+	ChecksumAlgo string        `json:"checksumAlgo"` //固定为“md5”
+	VersionId    VersionNumber `json:"versionId"`    //版本号，采用SemVer标准
+	Build        string        `json:"build"`        //构建信息：Tag/Branch信息 CommitID BuildTime
+	Description  string        `json:"description"`  //版本描述，含有更丰富的可读信息
 }
 
 /**
@@ -74,29 +74,6 @@ type PlatformInfo struct {
 	Arch        string        `json:"arch"`
 	Newest      VersionAddr   `json:"newest"`
 	Versions    []VersionAddr `json:"versions"`
-}
-
-/**
- *	平台标识
- */
-type PlatformId struct {
-	Os   string `json:"os"`
-	Arch string `json:"arch"`
-}
-
-/**
- *	包目录（软件包的系统，平台，版本目录）
- */
-type PackageDirectory struct {
-	PackageName string       `json:"packageName"`
-	Platforms   []PlatformId `json:"platforms"`
-}
-
-/**
- *	云端可供下载的包列表
- */
-type PackageList struct {
-	Packages []string `json:"packages"`
 }
 
 type UpgradeConfig struct {
@@ -273,9 +250,9 @@ func PrintVersion(ver VersionNumber) string {
  *	获取本地已安装包的版本
  */
 func GetLocalVersion(cfg UpgradeConfig) (VersionNumber, error) {
-	packageFileName := filepath.Join(cfg.PackageDir, fmt.Sprintf("%s.json", cfg.PackageName))
 	var pkg PackageVersion
-	bytes, err := os.ReadFile(packageFileName)
+	pkgFile := filepath.Join(cfg.PackageDir, fmt.Sprintf("%s.json", cfg.PackageName))
+	bytes, err := os.ReadFile(pkgFile)
 	if err != nil {
 		return VersionNumber{}, err
 	}
@@ -304,52 +281,6 @@ func GetRemoteVersions(cfg UpgradeConfig) (PlatformInfo, error) {
 	return *vers, nil
 }
 
-func GetRemotePlatforms(cfg UpgradeConfig) (PackageDirectory, error) {
-	//	<base-url>/<package>/platforms.json
-	urlStr := fmt.Sprintf("%s/%s/platforms.json",
-		cfg.BaseUrl, cfg.PackageName)
-
-	bytes, err := GetBytes(urlStr, nil)
-	if err != nil {
-		return PackageDirectory{}, err
-	}
-	plats := &PackageDirectory{}
-	if err = json.Unmarshal(bytes, plats); err != nil {
-		return *plats, fmt.Errorf("GetRemotePlatforms('%s') unmarshal error: %v", urlStr, err)
-	}
-	return *plats, nil
-}
-
-func GetRemotePackages(cfg UpgradeConfig) (PackageList, error) {
-	//	<base-url>/packages.json
-	urlStr := fmt.Sprintf("%s/packages.json", cfg.BaseUrl)
-
-	bytes, err := GetBytes(urlStr, nil)
-	if err != nil {
-		return PackageList{}, err
-	}
-	pkgs := &PackageList{}
-	if err = json.Unmarshal(bytes, pkgs); err != nil {
-		return *pkgs, fmt.Errorf("GetRemotePackages('%s') unmarshal error: %v", urlStr, err)
-	}
-	return *pkgs, nil
-}
-
-func GetRemoteOverview(cfg UpgradeConfig) (PackagesOverview, error) {
-	//	<base-url>/packages-overview.json
-	urlStr := fmt.Sprintf("%s/packages-overview.json", cfg.BaseUrl)
-
-	bytes, err := GetBytes(urlStr, nil)
-	if err != nil {
-		return PackagesOverview{}, err
-	}
-	pkgs := PackagesOverview{}
-	if err = json.Unmarshal(bytes, &pkgs); err != nil {
-		return pkgs, fmt.Errorf("GetRemoteOverview('%s') unmarshal error: %v", urlStr, err)
-	}
-	return pkgs, nil
-}
-
 /**
  *	比较版本
  */
@@ -374,6 +305,19 @@ func getCostrictDir() string {
 	return filepath.Join(homeDir, ".costrict")
 }
 
+func verifyPackageFile(pkg PackageVersion) error {
+	if pkg.PackageType != "exec" && pkg.PackageType != "conf" {
+		return fmt.Errorf("invalid package type: %s", pkg.PackageType)
+	}
+	if pkg.FileName == "" {
+		return fmt.Errorf("invalid FileName: %s", pkg.FileName)
+	}
+	if filepath.IsAbs(pkg.FileName) {
+		return fmt.Errorf("invalid FileName: %s", pkg.FileName)
+	}
+	return nil
+}
+
 /**
  *	获取包(需要校验保证包的合法性)
  */
@@ -382,8 +326,8 @@ func GetPackage(cfg UpgradeConfig, specVer *VersionNumber) (PackageVersion, bool
 	var curVer VersionNumber
 
 	//	获取本地版本信息
-	packageFileName := filepath.Join(cfg.PackageDir, fmt.Sprintf("%s.json", cfg.PackageName))
-	bytes, err := os.ReadFile(packageFileName)
+	pkgFile := filepath.Join(cfg.PackageDir, fmt.Sprintf("%s.json", cfg.PackageName))
+	bytes, err := os.ReadFile(pkgFile)
 	if err == nil {
 		if err := json.Unmarshal(bytes, &pkg); err == nil {
 			curVer = pkg.VersionId
@@ -416,7 +360,6 @@ func GetPackage(cfg UpgradeConfig, specVer *VersionNumber) (PackageVersion, bool
 			return pkg, false, nil
 		}
 	} else { //升级最新版本
-		//	比较当前最新版本，看是否有必要升级
 		ret := CompareVersion(curVer, vers.Newest.VersionId)
 		if ret >= 0 {
 			return pkg, false, nil
@@ -431,22 +374,20 @@ func GetPackage(cfg UpgradeConfig, specVer *VersionNumber) (PackageVersion, bool
 	}
 	if err = json.Unmarshal(data, &pkg); err != nil {
 		log.Printf("Unmarshal package info from '%s' failed: %v\n", addr.InfoUrl, err)
-		return pkg, false, fmt.Errorf("unmarshal '%s' error: %v", addr.InfoUrl, err)
+		return pkg, false, err
 	}
-	if pkg.FileName == "" {
-		pkg.FileName = pkg.PackageName
+	if err = verifyPackageFile(pkg); err != nil {
+		log.Printf("Invalid package file '%s': %v\n", addr.InfoUrl, err)
+		return pkg, false, err
 	}
 	cacheDir := filepath.Join(cfg.PackageDir, PrintVersion(addr.VersionId))
-	if err = os.MkdirAll(cfg.InstallDir, 0775); err != nil {
-		log.Printf("Create install directory '%s' failed: %v\n", cfg.InstallDir, err)
-		return pkg, false, fmt.Errorf("MkdirAll('%s') error: %v", cfg.InstallDir, err)
-	}
 	if err = os.MkdirAll(cacheDir, 0775); err != nil {
 		log.Printf("Create cache directory '%s' failed: %v\n", cacheDir, err)
 		return pkg, false, fmt.Errorf("MkdirAll('%s') error: %v", cacheDir, err)
 	}
 	//	下载包
-	dataFname := filepath.Join(cacheDir, pkg.FileName)
+	_, fname := filepath.Split(pkg.FileName)
+	dataFname := filepath.Join(cacheDir, fname)
 	if err = GetFile(cfg.BaseUrl+addr.AppUrl, nil, dataFname); err != nil {
 		log.Printf("Download package from '%s' to '%s' failed: %v\n", addr.AppUrl, dataFname, err)
 		return pkg, false, err
@@ -472,9 +413,9 @@ func GetPackage(cfg UpgradeConfig, specVer *VersionNumber) (PackageVersion, bool
 		return pkg, false, fmt.Errorf("verify sign error: %v", err)
 	}
 	//	把包描述文件保存到包文件目录
-	packageFileName = filepath.Join(cfg.PackageDir, fmt.Sprintf("%s-%s.json", cfg.PackageName, PrintVersion(pkg.VersionId)))
-	if err := os.WriteFile(packageFileName, data, 0644); err != nil {
-		log.Printf("Write package info file '%s' failed: %v\n", packageFileName, err)
+	pkgFile = filepath.Join(cfg.PackageDir, fmt.Sprintf("%s-%s.json", cfg.PackageName, PrintVersion(pkg.VersionId)))
+	if err := os.WriteFile(pkgFile, data, 0644); err != nil {
+		log.Printf("Write package info file '%s' failed: %v\n", pkgFile, err)
 		return pkg, false, err
 	}
 	return pkg, true, nil
@@ -486,35 +427,36 @@ func GetPackage(cfg UpgradeConfig, specVer *VersionNumber) (PackageVersion, bool
 func ActivatePackage(cfg UpgradeConfig, ver VersionNumber) error {
 	var pkg PackageVersion
 
-	packageFileName := filepath.Join(cfg.PackageDir, fmt.Sprintf("%s-%s.json", cfg.PackageName, PrintVersion(ver)))
-	data, err := os.ReadFile(packageFileName)
+	pkgFile := filepath.Join(cfg.PackageDir, fmt.Sprintf("%s-%s.json", cfg.PackageName, PrintVersion(ver)))
+	data, err := os.ReadFile(pkgFile)
 	if err != nil {
-		log.Printf("Read package file '%s' failed: %v\n", packageFileName, err)
+		log.Printf("Read package file '%s' failed: %v\n", pkgFile, err)
 		return err
 	}
 	if err := json.Unmarshal(data, &pkg); err != nil {
-		log.Printf("Unmarshal package data from '%s' failed: %v\n", packageFileName, err)
+		log.Printf("Unmarshal package data from '%s' failed: %v\n", pkgFile, err)
 		return err
 	}
+	_, fname := filepath.Split(pkg.FileName)
 	cacheDir := filepath.Join(cfg.PackageDir, PrintVersion(ver))
-	dataFname := filepath.Join(cacheDir, pkg.FileName)
+	dataFname := filepath.Join(cacheDir, fname)
 	//	把下载的包安装到正式目录
 	if err = installPackage(cfg, pkg, dataFname); err != nil {
 		log.Printf("Install package '%s' failed: %v\n", dataFname, err)
-		return fmt.Errorf("installPackage('%s') error: %v", dataFname, err)
+		return err
 	}
-	packageFileName = filepath.Join(cfg.PackageDir, fmt.Sprintf("%s.json", cfg.PackageName))
-	if err := os.WriteFile(packageFileName, data, 0644); err != nil {
-		log.Printf("Write current package file '%s' failed: %v\n", packageFileName, err)
+	pkgFile = filepath.Join(cfg.PackageDir, fmt.Sprintf("%s.json", cfg.PackageName))
+	if err := os.WriteFile(pkgFile, data, 0644); err != nil {
+		log.Printf("Write current package file '%s' failed: %v\n", pkgFile, err)
 		return err
 	}
 	if cfg.CleanCache {
 		if err := os.RemoveAll(cacheDir); err != nil {
 			log.Printf("Remove cache directory '%s' failed: %v\n", cacheDir, err)
 		}
-		packageFileName = filepath.Join(cfg.PackageDir, fmt.Sprintf("%s-%s.json", cfg.PackageName, PrintVersion(pkg.VersionId)))
-		if err := os.Remove(packageFileName); err != nil {
-			log.Printf("Remove version package file '%s' failed: %v\n", packageFileName, err)
+		pkgFile = filepath.Join(cfg.PackageDir, fmt.Sprintf("%s-%s.json", cfg.PackageName, PrintVersion(pkg.VersionId)))
+		if err := os.Remove(pkgFile); err != nil {
+			log.Printf("Remove version package file '%s' failed: %v\n", pkgFile, err)
 		}
 	}
 	return nil
@@ -545,7 +487,12 @@ func savePackageData(cfg UpgradeConfig, pkg PackageVersion, tmpFname string) err
 	if cfg.TargetPath != "" {
 		targetFileName = cfg.TargetPath
 	} else {
-		targetFileName = filepath.Join(cfg.InstallDir, pkg.FileName)
+		dir, fname := filepath.Split(pkg.FileName)
+		if dir != "" {
+			targetFileName = filepath.Join(cfg.BaseDir, pkg.FileName)
+		} else {
+			targetFileName = filepath.Join(cfg.InstallDir, fname)
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(targetFileName), 0755); err != nil {
 		return err
@@ -702,23 +649,24 @@ func installPackage(cfg UpgradeConfig, pkg PackageVersion, tmpFname string) erro
  *	- 删除包文件失败
  *	- 删除包描述文件失败
  *	@example
- *	err := RemovePackage("/home/xxx/.costrict", "my-package")
+ *	err := RemovePackage("/home/xxx/.costrict", "my-package", nil)
  *	if err != nil {
  *		log.Fatal(err)
  *	}
  */
-func RemovePackage(baseDir string, packageName string) error {
-	// 如果baseDir为空，使用默认路径
+func RemovePackage(baseDir string, packageName string, ver *VersionNumber) error {
 	if baseDir == "" {
 		baseDir = getCostrictDir()
 	}
+	if ver != nil {
+		return removeSpecialVersion(baseDir, packageName, *ver)
+	}
 	packageDir := filepath.Join(baseDir, "package")
 	installDir := filepath.Join(baseDir, "bin")
-
 	// 读取包描述文件
-	packageFileName := filepath.Join(packageDir, fmt.Sprintf("%s.json", packageName))
+	pkgFile := filepath.Join(packageDir, fmt.Sprintf("%s.json", packageName))
 	var pkg PackageVersion
-	bytes, err := os.ReadFile(packageFileName)
+	bytes, err := os.ReadFile(pkgFile)
 	if err != nil {
 		// 如果包描述文件不存在，认为包已移除，不报错
 		if os.IsNotExist(err) {
@@ -726,18 +674,18 @@ func RemovePackage(baseDir string, packageName string) error {
 		}
 		return fmt.Errorf("RemovePackage: read package file failed: %v", err)
 	}
-
 	// 解析包描述信息
 	if err := json.Unmarshal(bytes, &pkg); err != nil {
 		return fmt.Errorf("RemovePackage: unmarshal package info failed: %v", err)
 	}
-
+	removeSpecialVersion(baseDir, packageName, pkg.VersionId)
 	// 删除包文件
 	var targetFileName string
-	if pkg.FileName == "" {
-		targetFileName = filepath.Join(installDir, pkg.PackageName)
+	dir, fname := filepath.Split(pkg.FileName)
+	if dir != "" {
+		targetFileName = filepath.Join(baseDir, pkg.FileName)
 	} else {
-		targetFileName = filepath.Join(installDir, pkg.FileName)
+		targetFileName = filepath.Join(installDir, fname)
 	}
 
 	// 检查文件是否存在，如果存在则删除
@@ -749,11 +697,56 @@ func RemovePackage(baseDir string, packageName string) error {
 	}
 
 	// 删除包描述文件
-	if err := os.Remove(packageFileName); err != nil {
-		return fmt.Errorf("RemovePackage: remove package description file '%s' failed: %v", packageFileName, err)
+	if err := os.Remove(pkgFile); err != nil {
+		return fmt.Errorf("RemovePackage: remove package description file '%s' failed: %v", pkgFile, err)
 	}
 
 	log.Printf("Package '%s' removed successfully\n", packageName)
+	return nil
+}
+
+func removeSpecialVersion(baseDir string, packageName string, ver VersionNumber) error {
+	packageDir := filepath.Join(baseDir, "package")
+	cacheDir := filepath.Join(packageDir, PrintVersion(ver))
+
+	// 读取包描述文件
+	pkgFile := filepath.Join(packageDir, fmt.Sprintf("%s-%s.json", packageName, PrintVersion(ver)))
+	var pkg PackageVersion
+	bytes, err := os.ReadFile(pkgFile)
+	if err != nil {
+		// 如果包描述文件不存在，认为包已移除，不报错
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	// 解析包描述信息
+	if err := json.Unmarshal(bytes, &pkg); err != nil {
+		return err
+	}
+
+	_, fname := filepath.Split(pkg.FileName)
+	targetFileName := filepath.Join(cacheDir, fname)
+	// 检查文件是否存在，如果存在则删除
+	if _, err := os.Stat(targetFileName); err == nil {
+		if err := os.Remove(targetFileName); err != nil {
+			return err
+		}
+	}
+
+	// 删除包描述文件
+	if err := os.Remove(pkgFile); err != nil {
+		return err
+	}
+	if isDirEmpty(cacheDir) {
+		if err := os.Remove(cacheDir); err != nil {
+			log.Printf("remove empty package directory '%s' failed: %v\n", cacheDir, err)
+		} else {
+			log.Printf("removed empty package directory '%s'\n", cacheDir)
+		}
+	}
+	log.Printf("Package '%s-%s' removed successfully\n", packageName, PrintVersion(ver))
 	return nil
 }
 
@@ -830,13 +823,14 @@ func CleanupOldVersions(baseDir string) error {
 		}
 		version := pkg.VersionId
 		versionStr := PrintVersion(pkg.VersionId)
+		_, fname := filepath.Split(pkg.FileName)
 		// 保存版本信息
 		versionInfo := PackageVersionInfo{
 			PackageName: pkg.PackageName,
 			Version:     version,
 			FilePath:    filePath,
 			PackageDir:  filepath.Join(packageDir, versionStr),
-			PackageFile: filepath.Join(packageDir, versionStr, pkg.FileName),
+			PackageFile: filepath.Join(packageDir, versionStr, fname),
 		}
 
 		packageVersions[pkg.PackageName] = append(packageVersions[pkg.PackageName], versionInfo)

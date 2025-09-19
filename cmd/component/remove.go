@@ -18,8 +18,21 @@ func removePackage() error {
 		fmt.Println("Error: package name is required (either as positional argument or via -p/--package option)")
 		return fmt.Errorf("miss parameter")
 	}
+	if optRemovePackageVersion != "" {
+		ver, err := utils.ParseVersion(optRemovePackageVersion)
+		if err != nil {
+			fmt.Printf("The version '%s' is invalid", optRemovePackageVersion)
+			return err
+		}
+		if err = utils.RemovePackage("", optRemovePackageName, &ver); err != nil {
+			fmt.Printf("The '%s-%s' remove failed: %v", optRemovePackageName, optRemovePackageVersion, err)
+			return err
+		}
 
-	if err = utils.RemovePackage("", optRemovePackageName); err != nil {
+		fmt.Printf("The '%s-%s' is removed successfully\n", optRemovePackageName, optRemovePackageVersion)
+		return nil
+	}
+	if err = utils.RemovePackage("", optRemovePackageName, nil); err != nil {
 		fmt.Printf("The '%s' remove failed: %v", optRemovePackageName, err)
 		return err
 	}
@@ -46,6 +59,7 @@ const removeExample = `  # remove package
   smc package remove codebase-syncer`
 
 var optRemovePackageName string
+var optRemovePackageVersion string
 
 func init() {
 	componentCmd.AddCommand(removeCmd)
@@ -53,4 +67,5 @@ func init() {
 	removeCmd.Example = removeExample
 
 	removeCmd.Flags().StringVarP(&optRemovePackageName, "package", "p", "", "package name")
+	removeCmd.Flags().StringVarP(&optRemovePackageVersion, "version", "v", "", "special package version")
 }

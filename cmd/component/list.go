@@ -17,51 +17,60 @@ import (
  *	Fields displayed in list format
  */
 type Package_Columns struct {
-	PackageName  string `json:"packageName"`
-	Size         string `json:"size"`
-	Checksum     string `json:"checksum"`
-	ChecksumAlgo string `json:"checksumAlgo"`
-	Version      string `json:"version"`
-	Build        string `json:"build"`
-	Os           string `json:"os"`
-	Arch         string `json:"arch"`
-	Description  string `json:"description"`
+	A           string `json:"A"`
+	PackageName string `json:"packageName"`
+	Size        string `json:"size"`
+	Checksum    string `json:"checksum"`
+	Algo        string `json:"algo"`
+	Version     string `json:"version"`
+	Os          string `json:"os"`
+	Arch        string `json:"arch"`
+	Description string `json:"description"`
+}
+
+type PackageInfo struct {
+	Ver       *utils.PackageVersion
+	Activated bool
 }
 
 /**
  *	判断包是否已经在包列表中
  *	基于包名、操作系统、架构和版本判断唯一性
  */
-func isInPackageList(pkgInfo utils.PackageVersion, pkgList []utils.PackageVersion) bool {
-	for _, pkg := range pkgList {
+func findPackage(pkgInfo utils.PackageVersion, pkgList []PackageInfo) *PackageInfo {
+	for i, p := range pkgList {
+		pkg := p.Ver
 		if pkg.PackageName == pkgInfo.PackageName &&
 			pkg.Os == pkgInfo.Os &&
 			pkg.Arch == pkgInfo.Arch &&
 			pkg.VersionId.Major == pkgInfo.VersionId.Major &&
 			pkg.VersionId.Minor == pkgInfo.VersionId.Minor &&
 			pkg.VersionId.Micro == pkgInfo.VersionId.Micro {
-			return true
+			return &pkgList[i]
 		}
 	}
-	return false
+	return nil
 }
 
 /**
  *	扫描目录并收集包信息
  */
-func scanPackageDirectory(packageDir string, packageName string) ([]utils.PackageVersion, error) {
+func scanPackageDirectory(packageDir string, packageName string) ([]PackageInfo, error) {
 	// 检查目录是否存在
 	if _, err := os.Stat(packageDir); os.IsNotExist(err) {
 		return nil, err
 	}
 
 	// 遍历目录中的 *.json 文件
-	var packageInfos []utils.PackageVersion
+	var packageInfos []PackageInfo
 	err := filepath.WalkDir(packageDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if d.IsDir() {
+			if path != packageDir {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !strings.HasSuffix(d.Name(), ".json") {
@@ -82,8 +91,14 @@ func scanPackageDirectory(packageDir string, packageName string) ([]utils.Packag
 		}
 
 		// 检查包是否已经在列表中，确保唯一性
-		if !isInPackageList(pkgInfo, packageInfos) {
-			packageInfos = append(packageInfos, pkgInfo)
+		pkg := findPackage(pkgInfo, packageInfos)
+		if pkg != nil {
+			pkg.Activated = true
+		} else {
+			packageInfos = append(packageInfos, PackageInfo{
+				Ver:       &pkgInfo,
+				Activated: false,
+			})
 		}
 		return nil
 	})
@@ -110,28 +125,29 @@ func packageList(packageName string, verbose bool) error {
 	}
 
 	// 如果指定了包名且只有一个包，显示详细信息
-	if packageName != "" && len(packageInfos) == 1 {
-		if verbose {
-			utils.PrintYaml(packageInfos[0])
-		} else {
-			utils.PrintFormatByOrderMap(packageInfos[0])
-		}
+	if len(packageInfos) == 1 && verbose {
+		utils.PrintYaml(packageInfos[0].Ver)
 		return nil
 	}
 
 	// 格式化输出包列表
 	var dataList []*orderedmap.OrderedMap
-	for _, pkg := range packageInfos {
+	for _, p := range packageInfos {
+		pkg := p.Ver
 		row := Package_Columns{}
 		row.PackageName = pkg.PackageName
 		row.Os = pkg.Os
 		row.Arch = pkg.Arch
 		row.Size = fmt.Sprintf("%d", pkg.Size)
 		row.Checksum = pkg.Checksum
-		row.ChecksumAlgo = pkg.ChecksumAlgo
+		row.Algo = pkg.ChecksumAlgo
 		row.Version = fmt.Sprintf("%d.%d.%d", pkg.VersionId.Major, pkg.VersionId.Minor, pkg.VersionId.Micro)
-		row.Build = pkg.Build
 		row.Description = pkg.Description
+		if p.Activated {
+			row.A = "*"
+		} else {
+			row.A = " "
+		}
 
 		recordMap, _ := utils.StructToOrderedMap(row)
 		dataList = append(dataList, recordMap)

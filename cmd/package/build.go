@@ -45,6 +45,9 @@ func makePackage() error {
 	if err != nil {
 		return fmt.Errorf("parse version error: %v", err)
 	}
+	if optFileName != "" {
+		pkgData.FileName = optFileName
+	}
 	bytes, err := json.MarshalIndent(pkgData, "", "  ")
 	if err != nil {
 		return err
@@ -87,6 +90,7 @@ var optFrom string
 var optKeyFile string
 var optPackage string
 var optType string
+var optFileName string
 var optDescription string
 
 func init() {
@@ -104,6 +108,7 @@ func init() {
 	packageBuildCmd.Flags().StringVarP(&optArch, "arch", "a", runtime.GOARCH, "Target hardware architecture")
 	packageBuildCmd.Flags().StringVarP(&optVersion, "version", "v", "1.0.0", "Package version number(semver)")
 	packageBuildCmd.Flags().StringVarP(&optType, "type", "t", "exec", "Package type: exec/conf")
+	packageBuildCmd.Flags().StringVarP(&optFileName, "filename", "", "", "File installation name/path")
 	packageBuildCmd.Flags().StringVarP(&optDescription, "description", "d", "", "Package description")
 	packageBuildCmd.Flags().StringVarP(&optOutput, "output", "o", "", "Output .json file")
 	packageBuildCmd.MarkFlagRequired("from")
