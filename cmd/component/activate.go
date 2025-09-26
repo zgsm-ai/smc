@@ -2,11 +2,59 @@ package component
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/cobra"
 	"github.com/zgsm-ai/smc/cmd/common"
 	"github.com/zgsm-ai/smc/internal/utils"
 )
+
+func activateSelf(cfg utils.UpgradeConfig, newVer utils.VersionNumber) error {
+	cacheDir := filepath.Join(cfg.PackageDir, utils.PrintVersion(newVer))
+
+	tmpFname := filepath.Join(cacheDir, "smc")
+	targetFile := filepath.Join(cfg.InstallDir, "smc")
+	if runtime.GOOS == "windows" {
+		targetFile += ".exe"
+		tmpFname += ".exe"
+	}
+
+	// 直接执行升级命令，不保存脚本文件
+	fmt.Println("启动升级命令...")
+	if runtime.GOOS == "windows" {
+		// Windows: 使用 start 命令在新窗口中执行升级命令
+		// 对路径进行引号包裹，防止空格和特殊字符导致的问题
+		quotedTmpFname := fmt.Sprintf(`"%s"`, tmpFname)
+		quotedTargetFile := fmt.Sprintf(`"%s"`, targetFile)
+
+		// 构建更简单可靠的命令
+		command := fmt.Sprintf("echo 升级smc... && timeout /t 3 /nobreak > nul && copy /Y %s %s || pause",
+			quotedTmpFname, quotedTargetFile)
+		//
+		cmd := exec.Command("cmd", "/C", fmt.Sprintf("start /min cmd /C \"%s\"", command))
+		SetNewPG(cmd)
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("启动升级命令失败: %v", err)
+		}
+		fmt.Printf("command line: %s\n", cmd.String())
+	} else {
+		// Unix/Linux: 使用 nohup 在后台执行升级命令
+		cmd := exec.Command("sh", "-c", fmt.Sprintf("nohup sh -c 'echo \"升级smc...\" && sleep 3 && cp -f \"%s\" \"%s\" && echo \"升级完成\"' > /dev/null 2>&1 &",
+			tmpFname, targetFile))
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("启动升级命令失败: %v", err)
+		}
+	}
+
+	fmt.Printf("smc正在后台升级到版本 %s\n", utils.PrintVersion(newVer))
+
+	// 立即退出当前程序
+	os.Exit(0)
+	return nil // 这行代码不会执行，只是为了语法完整
+}
 
 func activatePackage() error {
 	var err error
@@ -32,6 +80,10 @@ func activatePackage() error {
 	cfg.Correct()
 
 	if err = utils.ActivatePackage(cfg, ver); err != nil {
+		if optActivatePackageName == "smc" {
+			// 当package选项未设置时，默认升级smc自身
+			return activateSelf(cfg, ver)
+		}
 		fmt.Printf("The '%s-%s' activate failed: %v", optActivatePackageName, optActivatePackageVersion, err)
 		return err
 	}

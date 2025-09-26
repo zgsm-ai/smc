@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
 
 	"github.com/spf13/cobra"
 	"github.com/zgsm-ai/smc/cmd/common"
@@ -51,9 +49,9 @@ func upgradePackage() error {
 		return nil
 	}
 	if err := utils.ActivatePackage(cfg, pkg.VersionId); err != nil {
-		if optUpgradePackageName == "smc" || optUpgradeSelf {
+		if optUpgradePackageName == "smc" {
 			// 当package选项未设置时，默认升级smc自身
-			return upgradeSelf(cfg, pkg.VersionId)
+			return activateSelf(cfg, pkg.VersionId)
 		}
 		fmt.Printf("The '%s' activate '%s' failed: %v",
 			cfg.PackageName, utils.PrintVersion(pkg.VersionId), err)
@@ -63,39 +61,12 @@ func upgradePackage() error {
 	return nil
 }
 
-func upgradeSelf(cfg utils.UpgradeConfig, newVer utils.VersionNumber) error {
-	cacheDir := filepath.Join(cfg.PackageDir, utils.PrintVersion(newVer))
-
-	tmpFname := filepath.Join(cacheDir, "smc")
-	targetFile := filepath.Join(cfg.InstallDir, "smc")
-	if runtime.GOOS == "windows" {
-		targetFile += ".exe"
-		tmpFname += ".exe"
-	}
-
-	// 直接执行升级命令，不保存脚本文件
-	fmt.Println("启动升级命令...")
-	if runtime.GOOS == "windows" {
-		// Windows: 使用 start 命令在新窗口中执行升级命令
-		cmd := exec.Command("cmd", "/C", fmt.Sprintf("start /min cmd /C \"echo 升级smc... && timeout /t 3 /nobreak > nul && copy /Y \"%s\" \"%s\" && echo 升级完成\"",
-			tmpFname, targetFile))
-		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("启动升级命令失败: %v", err)
-		}
-	} else {
-		// Unix/Linux: 使用 nohup 在后台执行升级命令
-		cmd := exec.Command("sh", "-c", fmt.Sprintf("nohup sh -c 'echo \"升级smc...\" && sleep 3 && cp -f \"%s\" \"%s\" && echo \"升级完成\"' > /dev/null 2>&1 &",
-			tmpFname, targetFile))
-		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("启动升级命令失败: %v", err)
-		}
-	}
-
-	fmt.Printf("smc正在后台升级到版本 %s\n", utils.PrintVersion(newVer))
-
-	// 立即退出当前程序
-	os.Exit(0)
-	return nil // 这行代码不会执行，只是为了语法完整
+// SetNewPG 设置进程属性，使子进程在父进程退出后继续运行
+// Windows系统实现
+func SetNewPG(cmd *exec.Cmd) {
+	// cmd.SysProcAttr = &syscall.SysProcAttr{
+	// 	CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	// }
 }
 
 var upgradeCmd = &cobra.Command{
@@ -128,7 +99,6 @@ const upgradeExample = `  # upgrade package
 var optUpgradeVersion string
 var optUpgradePackageName string
 var optPublicKey string
-var optUpgradeSelf bool
 
 func init() {
 	componentCmd.AddCommand(upgradeCmd)
@@ -138,5 +108,4 @@ func init() {
 	upgradeCmd.Flags().StringVarP(&optUpgradePackageName, "package", "p", "", "package name")
 	upgradeCmd.Flags().StringVarP(&optUpgradeVersion, "version", "v", "", "package version")
 	upgradeCmd.Flags().StringVar(&optPublicKey, "public", "", "public key file for package verification")
-	upgradeCmd.Flags().BoolVar(&optUpgradeSelf, "self", false, "upgrade smc itself")
 }

@@ -85,6 +85,9 @@ func scanPackageDirectory(packageDir string, packageName string) ([]PackageInfo,
 		if err := json.Unmarshal(data, &pkgInfo); err != nil {
 			return fmt.Errorf("failed to unmarshal package info from '%s': %v", path, err)
 		}
+		if pkgInfo.PackageName == "" {
+			return nil
+		}
 		// 如果指定了包名，则只返回匹配的包
 		if packageName != "" && pkgInfo.PackageName != packageName {
 			return nil
