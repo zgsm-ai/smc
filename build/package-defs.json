@@ -3,14 +3,14 @@
     {
       "name": "smc",
       "path": "../../smc",
-      "version": "1.1.6",
+      "version": "1.1.7",
       "type": "exec",
       "description": "System management console"
     },
     {
       "name": "costrict",
       "path": "../../costrict-keeper",
-      "version": "1.1.15",
+      "version": "1.1.16",
       "type": "exec",
       "description": "Costrict client process management service"
     },

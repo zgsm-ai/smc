@@ -53,7 +53,7 @@ upload_test=false
 upload_qianliu=false
 
 # Parse command line options
-args=$(getopt -o h:p:k: --long help:,package:,key:,build,pack,index,upload,upload-to:,clean,all -n 'build-packages.sh' -- "$@")
+args=$(getopt -o hp:k: --long help,package:,key:,build,pack,index,upload,upload-to:,clean,all -n 'build-packages.sh' -- "$@")
 [ $? -ne 0 ] && usage
 
 eval set -- "$args"
