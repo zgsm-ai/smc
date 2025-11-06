@@ -71,10 +71,11 @@ func listPackages(verbose bool) error {
 	// 格式化输出版本列表
 	var dataList []*orderedmap.OrderedMap
 	// 获取包列表以检查Details中是否存在该包
-	cfg := utils.UpgradeConfig{}
-	cfg.BaseUrl = env.BaseUrl + "/costrict"
-	cfg.Correct()
-	packages, err := utils.GetRemotePackages(cfg)
+	u := utils.NewUpgrader("", utils.UpgradeConfig{
+		BaseUrl: env.BaseUrl + "/costrict",
+	})
+
+	packages, err := u.GetRemotePackages()
 	if err != nil {
 		return err
 	}
@@ -102,14 +103,11 @@ func listPackages(verbose bool) error {
  *	List remote package information
  */
 func listPackage(packageName string, verbose bool) ([]*orderedmap.OrderedMap, error) {
-	cfg := utils.UpgradeConfig{
-		PackageName: packageName,
-		BaseUrl:     env.BaseUrl + "/costrict",
-	}
-	cfg.Correct()
-
+	u := utils.NewUpgrader(packageName, utils.UpgradeConfig{
+		BaseUrl: env.BaseUrl + "/costrict",
+	})
 	// 获取该软件包支持的所有平台
-	pkg, err := utils.GetRemotePlatforms(cfg)
+	pkg, err := u.GetRemotePlatforms()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get remote platforms: %v", err)
 	}
@@ -160,7 +158,7 @@ func getPlatform(packageName string, pov *utils.PlatformOverview, verbose bool) 
 			row.PackageName = packageName
 			row.Os = pov.Os
 			row.Arch = pov.Arch
-			row.Version = utils.PrintVersion(version.VersionId)
+			row.Version = version.VersionId.String()
 			row.Size = formatSize(version.Size)
 			row.Checksum = "*"
 			row.Algo = "*"
@@ -174,7 +172,7 @@ func getPlatform(packageName string, pov *utils.PlatformOverview, verbose bool) 
 			row.PackageName = packageName
 			row.Os = pov.Os
 			row.Arch = pov.Arch
-			row.Version = utils.PrintVersion(version.VersionId)
+			row.Version = version.VersionId.String()
 			row.Description = version.Description
 			recordMap, _ := utils.StructToOrderedMap(row)
 			dataList = append(dataList, recordMap)
@@ -189,16 +187,14 @@ func getPlatform(packageName string, pov *utils.PlatformOverview, verbose bool) 
  */
 func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.OrderedMap, error) {
 	// 为平台创建特定的配置
-	platformCfg := utils.UpgradeConfig{
-		PackageName: packageName,
-		Os:          os,
-		Arch:        arch,
-		BaseUrl:     env.BaseUrl + "/costrict",
-	}
-	platformCfg.Correct()
+	u := utils.NewUpgrader(packageName, utils.UpgradeConfig{
+		Os:      os,
+		Arch:    arch,
+		BaseUrl: env.BaseUrl + "/costrict",
+	})
 
 	// 获取该平台的远程版本列表
-	versList, err := utils.GetRemoteVersions(platformCfg)
+	versList, err := u.GetRemoteVersions()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get remote versions for platform %s/%s: %v", os, arch, err)
 	}
@@ -214,7 +210,7 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 			row.PackageName = versList.PackageName
 			row.Os = versList.Os
 			row.Arch = versList.Arch
-			row.Version = utils.PrintVersion(ver.VersionId)
+			row.Version = ver.VersionId.String()
 			row.Size = "*"
 			row.Checksum = "*"
 			row.Algo = "*"
@@ -222,7 +218,7 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 			row.Description = "*"
 			// 获取版本的详细元数据
 			if ver.InfoUrl != "" {
-				pkgInfo, err := getPackageDetailInfo(platformCfg.BaseUrl + ver.InfoUrl)
+				pkgInfo, err := getPackageDetailInfo(u.BaseUrl + ver.InfoUrl)
 				if err == nil {
 					row.Size = formatSize(pkgInfo.Size)
 					row.Checksum = pkgInfo.Checksum
@@ -239,11 +235,11 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 			row.PackageName = versList.PackageName
 			row.Os = versList.Os
 			row.Arch = versList.Arch
-			row.Version = utils.PrintVersion(ver.VersionId)
+			row.Version = ver.VersionId.String()
 			row.Description = "*"
 			// 获取版本的详细元数据（仅获取description）
 			if ver.InfoUrl != "" {
-				pkgInfo, err := getPackageDetailInfo(platformCfg.BaseUrl + ver.InfoUrl)
+				pkgInfo, err := getPackageDetailInfo(u.BaseUrl + ver.InfoUrl)
 				if err == nil {
 					row.Description = pkgInfo.Description
 				}

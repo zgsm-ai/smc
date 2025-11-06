@@ -9,14 +9,13 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/zgsm-ai/smc/cmd/common"
+	"github.com/zgsm-ai/smc/internal/env"
 	"github.com/zgsm-ai/smc/internal/utils"
 )
 
-func activateSelf(cfg utils.UpgradeConfig, newVer utils.VersionNumber) error {
-	cacheDir := filepath.Join(cfg.PackageDir, utils.PrintVersion(newVer))
-
-	tmpFname := filepath.Join(cacheDir, "smc")
-	targetFile := filepath.Join(cfg.InstallDir, "smc")
+func activateSelf(u *utils.Upgrader, newVer utils.VersionNumber) error {
+	tmpFname := filepath.Join(u.BaseDir, "package", newVer.String(), "smc")
+	targetFile := filepath.Join(u.BaseDir, "bin", "smc")
 	if runtime.GOOS == "windows" {
 		targetFile += ".exe"
 		tmpFname += ".exe"
@@ -49,7 +48,7 @@ func activateSelf(cfg utils.UpgradeConfig, newVer utils.VersionNumber) error {
 		}
 	}
 
-	fmt.Printf("smc正在后台升级到版本 %s\n", utils.PrintVersion(newVer))
+	fmt.Printf("smc正在后台升级到版本 %s\n", newVer.String())
 
 	// 立即退出当前程序
 	os.Exit(0)
@@ -70,19 +69,23 @@ func activatePackage() error {
 		fmt.Println("Error: package version is required")
 		return fmt.Errorf("miss parameter")
 	}
-	ver, err := utils.ParseVersion(optActivatePackageVersion)
-	if err != nil {
+	var ver utils.VersionNumber
+	if err = ver.Parse(optActivatePackageVersion); err != nil {
 		fmt.Printf("The version '%s' is invalid", optActivatePackageVersion)
 		return err
 	}
-	var cfg utils.UpgradeConfig
-	cfg.PackageName = optActivatePackageName
-	cfg.Correct()
-
-	if err = utils.ActivatePackage(cfg, ver); err != nil {
+	u := utils.NewUpgrader(optActivatePackageName, utils.UpgradeConfig{
+		BaseUrl: env.BaseUrl + "/costrict",
+	})
+	pkg, err := u.GetLocalVersion(&ver)
+	if err != nil {
+		fmt.Printf("The version '%s' is not exist\n", ver.String())
+		return err
+	}
+	if err = u.ActivatePackage(pkg); err != nil {
 		if optActivatePackageName == "smc" {
 			// 当package选项未设置时，默认升级smc自身
-			return activateSelf(cfg, ver)
+			return activateSelf(u, ver)
 		}
 		fmt.Printf("The '%s-%s' activate failed: %v", optActivatePackageName, optActivatePackageVersion, err)
 		return err

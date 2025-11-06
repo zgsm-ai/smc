@@ -8,20 +8,23 @@ import (
  * Basic execution environment for smc command family (common components of smc command parameters)
  */
 var (
-	BaseUrl      string //Base URL
-	TaskdAddr    string //Login server address
-	PromptAddr   string //AI-Prompt-Shell service address
-	Username     string //Login username
-	Password     string //Login password
-	RedisAddr    string //REDIS address
-	RedisPwd     string //REDIS password
-	RedisDb      int    //REDIS DB
-	RedisTimeout int    //REDIS record TTL
-	Cookie       string //AIP platform login cookie
-	Callback     string //Callback URL to receive notifications
-	Listen       string //Local server listening for callbacks
-	Logfile      string //Log file
-	Debug        string //Debug level(Off,Err,Dbg), controls output verbosity
+	BaseUrl       string //Base URL
+	MachineId     string //Machine ID
+	PluginVersion string //vscode plugin version
+	VscodeVersion string //vscode version
+	TaskdAddr     string //Login server address
+	PromptAddr    string //AI-Prompt-Shell service address
+	Username      string //Login username
+	Password      string //Login password
+	RedisAddr     string //REDIS address
+	RedisPwd      string //REDIS password
+	RedisDb       int    //REDIS DB
+	RedisTimeout  int    //REDIS record TTL
+	Cookie        string //AIP platform login cookie
+	Callback      string //Callback URL to receive notifications
+	Listen        string //Local server listening for callbacks
+	Logfile       string //Log file
+	Debug         string //Debug level(Off,Err,Dbg), controls output verbosity
 )
 
 /**
@@ -64,6 +67,12 @@ func InitEnvs() {
 		"Listening address", ":8888", NewString(&Listen))
 	defEnvs.Register("SMC_BASE_URL", "baseUrl",
 		"Costrict cloud base url", "https://zgsm.sangfor.com", NewString(&BaseUrl))
+	defEnvs.Register("SMC_MACHINE_ID", "machineId",
+		"Costrict machine ID", "", NewString(&MachineId))
+	defEnvs.Register("SMC_PLUGIN_VER", "pluginVersion",
+		"Costrict plugin version", "", NewString(&PluginVersion))
+	defEnvs.Register("SMC_VSCODE_VER", "vscodeVersion",
+		"Costrict vscode version", "", NewString(&VscodeVersion))
 
 	defEnvs.Load(ConfigPath(".smc/smc.env"))
 	defEnvs.SetOnChange(func() error {

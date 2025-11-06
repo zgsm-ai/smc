@@ -19,12 +19,14 @@ func removePackage() error {
 		return fmt.Errorf("miss parameter")
 	}
 	if optRemovePackageVersion != "" {
-		ver, err := utils.ParseVersion(optRemovePackageVersion)
+		var ver utils.VersionNumber
+		err := ver.Parse(optRemovePackageVersion)
 		if err != nil {
 			fmt.Printf("The version '%s' is invalid", optRemovePackageVersion)
 			return err
 		}
-		if err = utils.RemovePackage("", optRemovePackageName, &ver); err != nil {
+		u := utils.NewUpgrader(optRemovePackageName, utils.UpgradeConfig{})
+		if err = u.RemovePackage(&ver); err != nil {
 			fmt.Printf("The '%s-%s' remove failed: %v", optRemovePackageName, optRemovePackageVersion, err)
 			return err
 		}
@@ -32,7 +34,8 @@ func removePackage() error {
 		fmt.Printf("The '%s-%s' is removed successfully\n", optRemovePackageName, optRemovePackageVersion)
 		return nil
 	}
-	if err = utils.RemovePackage("", optRemovePackageName, nil); err != nil {
+	u := utils.NewUpgrader(optRemovePackageName, utils.UpgradeConfig{})
+	if err = u.RemovePackage(nil); err != nil {
 		fmt.Printf("The '%s' remove failed: %v", optRemovePackageName, err)
 		return err
 	}

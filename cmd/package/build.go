@@ -41,7 +41,7 @@ func makePackage() error {
 	pkgData.ChecksumAlgo = "md5"
 	pkgData.Sign = hex.EncodeToString(data)
 	pkgData.Description = optDescription
-	pkgData.VersionId, err = utils.ParseVersion(optVersion)
+	err = pkgData.VersionId.Parse(optVersion)
 	if err != nil {
 		return fmt.Errorf("parse version error: %v", err)
 	}

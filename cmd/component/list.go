@@ -10,6 +10,7 @@ import (
 
 	"github.com/iancoleman/orderedmap"
 	"github.com/spf13/cobra"
+	"github.com/zgsm-ai/smc/internal/env"
 	"github.com/zgsm-ai/smc/internal/utils"
 )
 
@@ -117,9 +118,10 @@ func scanPackageDirectory(packageDir string, packageName string) ([]PackageInfo,
  */
 func packageList(packageName string, verbose bool) error {
 	// 获取 .costrict/package 目录路径
-	cfg := utils.UpgradeConfig{}
-	cfg.Correct()
-	packageDir := cfg.PackageDir
+	u := utils.NewUpgrader(packageName, utils.UpgradeConfig{
+		BaseUrl: env.BaseUrl + "/costrict",
+	})
+	packageDir := filepath.Join(u.BaseDir, "package")
 
 	// 扫描目录并收集包信息
 	packageInfos, err := scanPackageDirectory(packageDir, packageName)

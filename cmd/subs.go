@@ -15,4 +15,5 @@ import (
 	_ "github.com/zgsm-ai/smc/cmd/template"
 	_ "github.com/zgsm-ai/smc/cmd/tool"
 	_ "github.com/zgsm-ai/smc/cmd/variable"
+	_ "github.com/zgsm-ai/smc/cmd/client"	
 )

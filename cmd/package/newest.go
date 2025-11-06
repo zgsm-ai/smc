@@ -13,7 +13,8 @@ import (
  *	Set the latest version
  */
 func setNewest(packages *utils.PlatformInfo, ver string) error {
-	verId, err := utils.ParseVersion(ver)
+	var verId utils.VersionNumber
+	err := verId.Parse(ver)
 	if err != nil {
 		return err
 	}

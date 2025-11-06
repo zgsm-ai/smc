@@ -1,6 +1,5 @@
 #!/bin/bash
 
-source ./.env
 #
 # 包管理系统的目录结构：
 #
@@ -22,9 +21,9 @@ usage() {
     echo "  --build              Need build packages"
     echo "  --pack               Need pack packages"
     echo "  --index              Need index packages"
+    echo "  --all                Execute all steps except for 'upload' (clean, build, pack, index)"
     echo "  --upload             Need upload packages"
     echo "  --upload-to <env>    Upload package to <env>, env: def, all, prod, test, qianliu"
-    echo "  --all                Execute all steps (clean, build, pack, index, upload)"
     echo "  -h, --help           Help information"
     exit 1
 }
@@ -53,7 +52,7 @@ upload_test=false
 upload_qianliu=false
 
 # Parse command line options
-args=$(getopt -o hp:k: --long help,package:,key:,build,pack,index,upload,upload-to:,clean,all -n 'build-packages.sh' -- "$@")
+args=$(getopt -o hp:k: --long help,package:,key:,clean,build,pack,index,all,upload,upload-to: -n 'build-packages.sh' -- "$@")
 [ $? -ne 0 ] && usage
 
 eval set -- "$args"
@@ -66,9 +65,9 @@ while true; do
         --build) need_build=true; shift;;
         --pack) need_pack=true; shift;;
         --index) need_index=true; shift;;
+        --all) need_clean=true; need_build=true; need_pack=true; need_index=true; shift;;
         --upload) enable_upload "def"; shift;;
         --upload-to) enable_upload "$2"; shift 2;;
-        --all) need_clean=true; need_build=true; need_pack=true; need_index=true; enable_upload "def"; shift;;
         -h|--help) usage; exit 0;;
         --) shift; break;;
         *) usage;;
@@ -206,9 +205,9 @@ build_package() {
     local package="$1"
     
     # 从package-versions.json中获取指定包的版本号和路径
-    local package_version=$(jq -r ".packages[] | select(.name == \"${package}\") | .version" package-defs.json)
-    local package_path=$(jq -r ".packages[] | select(.name == \"${package}\") | .path" package-defs.json)
-    local package_type=$(jq -r ".packages[] | select(.name == \"${package}\") | .type" package-defs.json)
+    local package_version=$(jq -r ".builds[] | select(.name == \"${package}\") | .version" packages.json)
+    local package_path=$(jq -r ".builds[] | select(.name == \"${package}\") | .path" packages.json)
+    local package_type=$(jq -r ".builds[] | select(.name == \"${package}\") | .type" packages.json)
 
     if [ -z "$package_path" ] || [ "$package_path" = "null" ]; then
         echo "Skipping build step for ${package}..."
@@ -216,12 +215,12 @@ build_package() {
     fi
 
     if [ -z "$package_version" ] || [ "$package_version" = "null" ]; then
-        echo "Error: Version not found for package '${package}' in package-defs.json!"
+        echo "Error: Version not found for package '${package}' in packages.json!"
         exit 1
     fi
 
     if [ -z "$package_type" ] || [ "$package_type" = "null" ]; then
-        echo "Error: 'type' not found for package '${package}' in package-defs.json!"
+        echo "Error: 'type' not found for package '${package}' in packages.json!"
         exit 1
     fi
     
@@ -231,10 +230,10 @@ build_package() {
     if [ "exec" == "$package_type" ]; then
         build_app "${package}" "${package_version}" "${package_path}"
     else
-        local package_target=$(jq -r ".packages[] | select(.name == \"${package}\") | .target" package-defs.json)
+        local package_target=$(jq -r ".builds[] | select(.name == \"${package}\") | .target" packages.json)
 
         if [ -z "$package_target" ] || [ "$package_target" = "null" ]; then
-            echo "Error: 'target' not found for package '${package}' in package-defs.json!"
+            echo "Error: 'target' not found for package '${package}' in packages.json!"
             exit 1
         fi
         build_conf "${package}" "${package_version}" "${package_path}" "${package_target}"
@@ -246,18 +245,18 @@ build_packages() {
     local version="$1"
 
     # 从package-versions.json读取包信息
-    echo "Reading package information from package-defs.json..."
+    echo "Reading package information from packages.json..."
     
     # 使用jq解析JSON
-    local packages_json=$(cat package-defs.json)
-    local package_count=$(echo "$packages_json" | jq '.packages | length')
+    local packages_json=$(cat packages.json)
+    local package_count=$(echo "$packages_json" | jq '.builds | length')
     
     echo "Found $package_count packages to build"
     echo ""
 
     # 遍历每个包
     for ((i=0; i<package_count; i++)); do
-        local package_name=$(echo "$packages_json" | jq -r ".packages[$i].name")
+        local package_name=$(echo "$packages_json" | jq -r ".builds[$i].name")
 
         build_package "${package_name}"
         echo ""
@@ -266,11 +265,11 @@ build_packages() {
     echo "All packages built successfully!"
 }
 
-# Function to get package type from package-defs.json
+# Function to get package type from packages.json
 get_package_type() {
     local package_name=$1
 
-    local package_type=$(jq -r ".packages[] | select(.name == \"${package_name}\") | .type // empty" package-defs.json)
+    local package_type=$(jq -r ".builds[] | select(.name == \"${package_name}\") | .type // empty" packages.json)
     if [ -z "$package_type" ] || [ "$package_type" = "null" ]; then
         echo "exec"
     else
@@ -278,11 +277,11 @@ get_package_type() {
     fi
 }
 
-# Function to get package description from package-defs.json
+# Function to get package description from packages.json
 get_package_description() {
     local package_name=$1
 
-    local package_description=$(jq -r ".packages[] | select(.name == \"${package_name}\") | .description // empty" package-defs.json)
+    local package_description=$(jq -r ".builds[] | select(.name == \"${package_name}\") | .description // empty" packages.json)
     if [ -z "$package_description" ] || [ "$package_description" = "null" ]; then
         echo "No description information"
     else
@@ -293,7 +292,7 @@ get_package_description() {
 get_package_filename() {
     local package_name=$1
 
-    local package_filename=$(jq -r ".packages[] | select(.name == \"${package_name}\") | .filename // empty" package-defs.json)
+    local package_filename=$(jq -r ".builds[] | select(.name == \"${package_name}\") | .filename // empty" packages.json)
     if [ -z "$package_filename" ] || [ "$package_filename" = "null" ]; then
         echo ""
     else
@@ -361,8 +360,8 @@ cleanup_old_versions() {
     local package_name="$1"
         
     # 从package-versions.json中获取指定包的版本号
-    local target_version=$(jq -r ".packages[] | select(.name == \"${package_name}\") | .version" package-defs.json)
-    local target_path=$(jq -r ".packages[] | select(.name == \"${package_name}\") | .path" package-defs.json)
+    local target_version=$(jq -r ".builds[] | select(.name == \"${package_name}\") | .version" packages.json)
+    local target_path=$(jq -r ".builds[] | select(.name == \"${package_name}\") | .path" packages.json)
     
     if [ -z "$target_version" ] || [ "$target_version" = "null" ]; then
         echo "Skipping clean step for package '${package_name}'..."
@@ -420,18 +419,18 @@ cleanup_old_versions() {
 # Function to clean up old versions for all packages
 cleanup_all_old_versions() {
     # 从package-versions.json读取包信息
-    echo "Reading package information from package-defs.json for clean..."
+    echo "Reading package information from packages.json for clean..."
     
     # 使用jq解析JSON
-    local packages_json=$(cat package-defs.json)
-    local package_count=$(echo "$packages_json" | jq '.packages | length')
+    local packages_json=$(cat packages.json)
+    local package_count=$(echo "$packages_json" | jq '.builds | length')
     
     echo "Found $package_count packages to clean"
     echo ""
     
     # 遍历每个包
     for ((i=0; i<package_count; i++)); do
-        local package_name=$(echo "$packages_json" | jq -r ".packages[$i].name")
+        local package_name=$(echo "$packages_json" | jq -r ".builds[$i].name")
         
         echo "=============================================="
         echo "Cleaning up package: $package_name"
@@ -462,11 +461,11 @@ upload_package() {
     ssh -p "${port}" "root@${ip}" <<EOF
         set -e
         echo "Transfer ${package} to formal directory..."
-        if [ -f "${formalDir}/${package}" ]; then
+        if [ -d "${formalDir}/${package}" ]; then
             mv "${formalDir}/${package}" "${uploadDir}/${package}-tmp"
         fi
         mv "${uploadDir}/${package}" "${formalDir}/${package}"
-        if [ -f "${uploadDir}/${package}-tmp" ]; then
+        if [ -d "${uploadDir}/${package}-tmp" ]; then
             mv "${uploadDir}/${package}-tmp" "${uploadDir}/${package}"
         fi
 EOF
@@ -474,6 +473,8 @@ EOF
 
 upload_package_clouds() {
     local package=$1
+
+    source ./.env
 
     if [ "$upload_test" = true ]; then
         echo "=============================================="
@@ -508,9 +509,9 @@ if [ "$need_clean" = true ] || [ "$need_build" = true ] || [ "$need_pack" = true
         echo "  Windows: Download from https://stedolan.github.io/jq/download/"
         exit 1
     fi
-    # 检查是否有模块定义文件package-defs.json
-    if [ ! -f "package-defs.json" ]; then
-        echo "Error: package-defs.json file not found!"
+    # 检查是否有模块定义文件packages.json
+    if [ ! -f "packages.json" ]; then
+        echo "Error: packages.json file not found!"
         exit 1
     fi
 fi
@@ -566,7 +567,7 @@ if [ -z "$package" ]; then
     fi
 else
     # 处理指定包
-    [ -d "${package}" ] || { echo "Error: Package directory '${package}' not found!"; exit 1; }
+    mkdir -p "${package}"
 
     if [ "$need_clean" = true ]; then
         echo "Cleaning up old versions for package: $package"
@@ -611,6 +612,5 @@ else
         echo "Skipping upload step for ${package}..."
     fi
 fi
-
 
 echo "Build completed."

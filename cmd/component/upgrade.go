@@ -13,23 +13,24 @@ import (
 
 func upgradePackage() error {
 	var err error
-	cfg := utils.UpgradeConfig{}
-	cfg.BaseUrl = env.BaseUrl + "/costrict"
-	cfg.PackageName = optUpgradePackageName
+	var publicKey string
 	if optPublicKey != "" {
 		// 读取公钥文件内容
 		keyData, err := os.ReadFile(optPublicKey)
 		if err != nil {
 			return fmt.Errorf("failed to read public key file: %v", err)
 		}
-		cfg.PublicKey = string(keyData)
+		publicKey = string(keyData)
 	}
-	cfg.Correct()
+	u := utils.NewUpgrader(optUpgradePackageName, utils.UpgradeConfig{
+		BaseUrl:   env.BaseUrl + "/costrict",
+		PublicKey: publicKey,
+	})
 
 	var newVer *utils.VersionNumber
 	if optUpgradeVersion != "" {
 		var ver utils.VersionNumber
-		ver, err = utils.ParseVersion(optUpgradeVersion)
+		err = ver.Parse(optUpgradeVersion)
 		if err != nil {
 			return err
 		}
@@ -38,26 +39,26 @@ func upgradePackage() error {
 		newVer = nil
 	}
 
-	pkg, upgraded, err := utils.GetPackage(cfg, newVer)
+	pkg, upgraded, err := u.GetPackage(newVer)
 	if err != nil {
-		fmt.Printf("The '%s' upgrade failed: %v", cfg.PackageName, err)
+		fmt.Printf("The '%s' upgrade failed: %v", optUpgradePackageName, err)
 		return err
 	}
 	if !upgraded {
 		fmt.Printf("The '%s' version '%s' is up to date\n",
-			cfg.PackageName, utils.PrintVersion(pkg.VersionId))
+			optUpgradePackageName, pkg.VersionId.String())
 		return nil
 	}
-	if err := utils.ActivatePackage(cfg, pkg.VersionId); err != nil {
+	if err := u.ActivatePackage(pkg); err != nil {
 		if optUpgradePackageName == "smc" {
 			// 当package选项未设置时，默认升级smc自身
-			return activateSelf(cfg, pkg.VersionId)
+			return activateSelf(u, pkg.VersionId)
 		}
 		fmt.Printf("The '%s' activate '%s' failed: %v",
-			cfg.PackageName, utils.PrintVersion(pkg.VersionId), err)
+			optUpgradePackageName, pkg.VersionId.String(), err)
 		return err
 	}
-	fmt.Printf("The '%s' is upgraded to version %s\n", cfg.PackageName, utils.PrintVersion(pkg.VersionId))
+	fmt.Printf("The '%s' is upgraded to version %s\n", optUpgradePackageName, pkg.VersionId.String())
 	return nil
 }
 
