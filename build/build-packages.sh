@@ -13,7 +13,7 @@
 #
 
 usage() {
-    echo "Usage: build-packages.sh [-p PACKAGE] [-k KEY_FILE] [--clean] [--build] [--pack] [--index] [--upload] [--all]"
+    echo "Usage: build-packages.sh [-p PACKAGE] [-k KEY_FILE] [--clean] [--build] [--pack] [--index] [--upload] [--upload-packages] [--all]"
     echo "Options:"
     echo "  -p, --package        Package name (optional, if not specified, will process all packages)"
     echo "  -k, --key            Private key file (default: costrict-private.pem)"
@@ -23,6 +23,7 @@ usage() {
     echo "  --index              Need index packages"
     echo "  --all                Execute all steps except for 'upload' (clean, build, pack, index)"
     echo "  --upload             Need upload packages"
+    echo "  --upload-packages    Need upload packages.json"
     echo "  --upload-to <env>    Upload package to <env>, env: def, all, prod, test, qianliu"
     echo "  -h, --help           Help information"
     exit 1
@@ -47,12 +48,13 @@ need_build=false
 need_pack=false
 need_index=false
 need_upload=false
+need_upload_packages=false
 upload_prod=false
 upload_test=false
 upload_qianliu=false
 
 # Parse command line options
-args=$(getopt -o hp:k: --long help,package:,key:,clean,build,pack,index,all,upload,upload-to: -n 'build-packages.sh' -- "$@")
+args=$(getopt -o hp:k: --long help,package:,key:,clean,build,pack,index,all,upload,upload-packages,upload-to: -n 'build-packages.sh' -- "$@")
 [ $? -ne 0 ] && usage
 
 eval set -- "$args"
@@ -67,6 +69,7 @@ while true; do
         --index) need_index=true; shift;;
         --all) need_clean=true; need_build=true; need_pack=true; need_index=true; shift;;
         --upload) enable_upload "def"; shift;;
+        --upload-packages) need_upload_packages=true; shift;;
         --upload-to) enable_upload "$2"; shift 2;;
         -h|--help) usage; exit 0;;
         --) shift; break;;
@@ -173,18 +176,21 @@ build_conf() {
             
             # 源文件路径
             local source_file="$source_dir/$os/$arch/$target"
-            
             # 目标文件路径
             local target_file="$output_dir/$target"
             
-            echo "Source file: $source_file"
-            echo "Target file: $target_file"
-            
             # 检查源文件是否存在
             if [ ! -f "$source_file" ]; then
-                echo "Warning: Source file $source_file does not exist, skipping..."
-                continue
+                if [ -f "$source_dir/common/$target" ]; then
+                    source_file="$source_dir/common/$target"
+                else 
+                    echo "Warning: Source file $source_file does not exist, skipping..."
+                    continue
+                fi
             fi
+            
+            echo "Source file: $source_file"
+            echo "Target file: $target_file"
             
             # 复制文件
             cp "$source_file" "$target_file"
@@ -516,6 +522,12 @@ if [ "$need_clean" = true ] || [ "$need_build" = true ] || [ "$need_pack" = true
     fi
 fi
 
+if [ "$need_upload_packages" = true ]; then
+    echo "Uploading packages.json..."
+    upload_package_clouds "packages.json"
+    exit 0
+fi
+
 if [ -z "$package" ]; then
     # 处理所有包
     if [ "$need_clean" = true ]; then
@@ -562,8 +574,6 @@ if [ -z "$package" ]; then
             [ ! -f "${package_dir}platforms.json" ] && continue
             upload_package_clouds "${package}"
         done
-    else
-        echo "Skipping upload step for all packages..."
     fi
 else
     # 处理指定包
@@ -608,8 +618,6 @@ else
     if [ "$need_upload" = true ]; then
         echo "Uploading package: $package"
         upload_package_clouds "${package}"
-    else
-        echo "Skipping upload step for ${package}..."
     fi
 fi
 

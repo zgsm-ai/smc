@@ -222,7 +222,7 @@ func Login(params *LoginParams, progress func() error) (string, error) {
 
 	fmt.Printf("Opening login URL in browser: %s\n", loginURL)
 	if err := OpenBrowser(loginURL); err != nil {
-		return "", fmt.Errorf("failed to open browser: %w", err)
+		fmt.Printf("WARN: failed to open browser: %w", err)
 	}
 
 	// 2. Periodically poll the token endpoint

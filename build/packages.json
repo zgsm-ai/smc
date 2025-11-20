@@ -1,42 +1,45 @@
 {
   "packages": [
     "costrict-config",
-    "cotun",
     "cotun-options",
-    "smc",
+    "completion-config",
+    "tokenizer-config",
+    "hidden-scores-config",
     "system",
+    "smc",
     "codebase-indexer",
-    "costrict",
-    "updater"
+    "completion-agent",
+    "cotun",
+    "costrict"
   ],
   "builds": [
     {
       "name": "smc",
       "path": "../../smc",
-      "version": "1.1.8",
+      "version": "1.1.10",
       "type": "exec",
       "description": "System management console"
     },
     {
       "name": "costrict",
       "path": "../../costrict-keeper",
-      "version": "1.1.19",
+      "version": "1.1.23",
       "type": "exec",
       "description": "Costrict client process management service"
     },
     {
       "name": "cotun",
       "path": "../../cotun",
-      "version": "1.2.16",
+      "version": "1.2.30",
       "type": "exec",
       "description": "Stream transfer tools"
     },
     {
-      "name": "updater",
-      "path": "../../updater",
-      "version": "1.0.0",
+      "name": "completion-agent",
+      "path": "../../completion-agent",
+      "version": "1.0.3",
       "type": "exec",
-      "description": "Software update tools"
+      "description": "Client agent for code completion"
     },
     {
       "name": "system",
@@ -64,6 +67,33 @@
       "type": "conf",
       "version": "1.0.0",
       "description": "Cotun option file"
+    },
+    {
+      "name": "completion-config",
+      "path": "./configures",
+      "target": "completion-agent.json",
+      "filename": "config/completion-agent.json",
+      "type": "conf",
+      "version": "1.0.4",
+      "description": "Completion-Agent configure file"
+    },
+    {
+      "name": "tokenizer-config",
+      "path": "./configures",
+      "target": "tokenizer.json",
+      "filename": "config/tokenizer.json",
+      "type": "conf",
+      "version": "1.0.0",
+      "description": "The definition file used by the Tokenizer"
+    },
+    {
+      "name": "hidden-scores-config",
+      "path": "./configures",
+      "target": "hidden-scores.json",
+      "filename": "config/hidden-scores.json",
+      "type": "conf",
+      "version": "1.0.0",
+      "description": "The Configuration for hidden-scores filter"
     }
   ]
 }
