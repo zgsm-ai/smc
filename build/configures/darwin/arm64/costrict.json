@@ -1,5 +1,5 @@
 {
-  "listen": "localhost:6999",
+  "listen": "localhost:8999",
   "service": {
     "min_port": 9000,
     "max_port": 10000

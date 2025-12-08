@@ -7,7 +7,7 @@
       "modelName": "DeepSeek-Coder-V2-Lite-Base",
       "authorization": "Bearer {{ .Auth.AccessToken }}",
       "tags": [
-        "fasttransformer",
+        "fastertransformer",
         "deepseek"
       ],
       "timeout": "2000ms",
@@ -50,7 +50,7 @@
     },
     "prune": {
       "disabled": false,
-      "pruners": ["deduplication", "formatting", "validation"]
+      "pruners": ["cut-single-line", "cut-repetitive-text", "cut-prefix-overlap", "cut-suffix-overlap", "cut-syntax-error"]
     },
     "tokenizer": {
       "path": "{{ .Env.CostrictDir }}/config/tokenizer.json"

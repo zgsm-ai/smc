@@ -25,6 +25,7 @@ var (
 	Listen        string //Local server listening for callbacks
 	Logfile       string //Log file
 	Debug         string //Debug level(Off,Err,Dbg), controls output verbosity
+	SkipSSL       bool   //skip ssl verify:InsecureSkipVerify
 )
 
 /**
@@ -73,6 +74,8 @@ func InitEnvs() {
 		"Costrict plugin version", "", NewString(&PluginVersion))
 	defEnvs.Register("SMC_VSCODE_VER", "vscodeVersion",
 		"Costrict vscode version", "", NewString(&VscodeVersion))
+	defEnvs.Register("SMC_SKIP_SSL", "skipSsl",
+		"Skip SSL verification", "false", NewBool(&SkipSSL))
 
 	defEnvs.Load(ConfigPath(".smc/smc.env"))
 	defEnvs.SetOnChange(func() error {

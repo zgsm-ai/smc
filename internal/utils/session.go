@@ -97,7 +97,7 @@ func acquireServerError(rsp *http.Response, rspBody []byte) error {
 func NewSession(url string) *Session {
 	ss := new(Session)
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: env.SkipSSL},
 	}
 	ss.client = &http.Client{Transport: tr}
 	ss.HostUrl = url
@@ -115,7 +115,7 @@ func NewProxySession(hostUrl, proxy string) *Session {
 	}
 	tr := &http.Transport{
 		Proxy:           http.ProxyURL(proxyURL), // Set proxy URL
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: env.SkipSSL},
 	}
 	ss := new(Session)
 	ss.client = &http.Client{Transport: tr}

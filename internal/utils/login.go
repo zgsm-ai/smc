@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/zgsm-ai/smc/internal/env"
 )
 
 // TokenResponse represents the response from the token endpoint
@@ -169,7 +171,7 @@ func GetToken(params *LoginParams) (*TokenResponse, error) {
 
 	// Create a transport with insecure TLS verification (similar to other utils)
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: env.SkipSSL},
 	}
 	client := &http.Client{Transport: tr}
 
