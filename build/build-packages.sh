@@ -13,16 +13,18 @@
 #
 
 usage() {
-    echo "Usage: build-packages.sh [-p PACKAGE] [-k KEY_FILE] [--clean] [--build] [--pack] [--index] [--upload] [--upload-packages] [--all]"
+    echo "Usage: build-packages.sh [-p PACKAGE] [--packages PACKAGES] [--type TYPE] [--key KEY_FILE] [--clean] [--build] [--pack] [--index] [--upload] [--upload-packages] [--all]"
     echo "Options:"
     echo "  -p, --package        Package name (optional, if not specified, will process all packages)"
-    echo "  -k, --key            Private key file (default: costrict-private.pem)"
+    echo "  --packages <list>    Package list (space-separated, e.g., \"pkg1 pkg2 pkg3\")"
+    echo "  --type <type>        Package type filter (e.g., exec, conf, zip)"
+    echo "  --key <key>          Private key file (default: costrict-private.pem)"
     echo "  --clean              Need clean first"
     echo "  --build              Need build packages"
     echo "  --pack               Need pack packages"
     echo "  --index              Need index packages"
-    echo "  --all                Execute all steps except for 'upload' (clean, build, pack, index)"
     echo "  --upload             Need upload packages"
+    echo "  --def                Execute default steps (build, pack, index)"
     echo "  --upload-packages    Need upload packages.json"
     echo "  --upload-to <env>    Upload package to <env>, env: def, all, prod, test, qianliu"
     echo "  -h, --help           Help information"
@@ -31,11 +33,11 @@ usage() {
 
 enable_upload() {
     case "$1" in
-        def) need_upload=true; upload_prod=true; upload_test=true; upload_qianliu=false;;
-        all) need_upload=true; upload_prod=true; upload_test=true; upload_qianliu=true;;
-        prod) need_upload=true; upload_prod=true;;
-        test) need_upload=true; upload_test=true;;
-        qianliu) need_upload=true; upload_qianliu=true;;
+        def) NEED_UPLOAD=true; upload_prod=true; upload_test=true; upload_qianliu=false;;
+        all) NEED_UPLOAD=true; upload_prod=true; upload_test=true; upload_qianliu=true;;
+        prod) NEED_UPLOAD=true; upload_prod=true;;
+        test) NEED_UPLOAD=true; upload_test=true;;
+        qianliu) NEED_UPLOAD=true; upload_qianliu=true;;
         *) usage;;
     esac
 }
@@ -47,14 +49,16 @@ need_clean=false
 need_build=false
 need_pack=false
 need_index=false
-need_upload=false
+NEED_UPLOAD=false
 need_upload_packages=false
 upload_prod=false
 upload_test=false
 upload_qianliu=false
+package_type=""
+packages=""
 
 # Parse command line options
-args=$(getopt -o hp:k: --long help,package:,key:,clean,build,pack,index,all,upload,upload-packages,upload-to: -n 'build-packages.sh' -- "$@")
+args=$(getopt -o hp:K: --long help,package:,packages:,kind:,type:,key:,clean,build,pack,index,def,upload,upload-packages,upload-to: -n 'build-packages.sh' -- "$@")
 [ $? -ne 0 ] && usage
 
 eval set -- "$args"
@@ -62,12 +66,14 @@ eval set -- "$args"
 while true; do
     case "$1" in
         -p|--package) package="$2"; shift 2;;
-        -k|--key) key_file="$2"; shift 2;;
+        --packages) packages="$2"; shift 2;;
+        --type) package_type="$2"; shift 2;;
+        --key) key_file="$2"; shift 2;;
         --clean) need_clean=true; shift;;
         --build) need_build=true; shift;;
         --pack) need_pack=true; shift;;
         --index) need_index=true; shift;;
-        --all) need_clean=true; need_build=true; need_pack=true; need_index=true; shift;;
+        --def) need_build=true; need_pack=true; need_index=true; shift;;
         --upload) enable_upload "def"; shift;;
         --upload-packages) need_upload_packages=true; shift;;
         --upload-to) enable_upload "$2"; shift 2;;
@@ -81,57 +87,48 @@ done
 build_app() {
     local package_name="$1"
     local version="$2"
-    local path="$3"
-    
+    local source_dir="$3"
+    local platforms_json="$4"
+
+    # 获取当前路径的绝对路径
+    local current_dir=$(pwd)   
+    # 解析platforms数组
+    local platform_count=$(echo "$platforms_json" | jq 'length')
+
     echo "Starting multi-platform build for package: $package_name, version: $version"
     echo ""
-    
-    # 获取当前路径的绝对路径
-    local current_dir=$(pwd)
-    echo "Current directory: $current_dir"
-    
-    # 使用传入的path参数作为目标路径
-    local target_dir="$current_dir/$path"
-    echo "Target directory: $target_dir"
-    
-    # 检查目标路径是否存在
-    if [ ! -d "$target_dir" ]; then
-        echo "Error: Target directory $target_dir does not exist!"
-        exit 1
-    fi
-    
-    # Supported platforms and architectures
-    PLATFORMS=("linux" "windows" "darwin")
-    ARCHITECTURES=("amd64" "arm64")
-    
-    # Build all combinations
-    for os in "${PLATFORMS[@]}"; do
-        for arch in "${ARCHITECTURES[@]}"; do
-            echo "==== Building $package_name for $os/$arch ===="
-            
-            # 创建输出目录
-            local output_dir="$current_dir/$package_name/$os/$arch/$version"
-            mkdir -p "$output_dir"
-            
-            # 设置输出文件名
-            local output_file="$package_name"
-            if [ "$os" = "windows" ]; then
-                output_file="$output_file.exe"
-            fi
-            
-            # 完整输出路径
-            local output_target="$output_dir/$output_file"
-            
-            echo "Output target: $output_target"
-            
-            # 到目标路径执行build.py
-            (cd "$target_dir" && python ./build.py --software "$version" --os "$os" --arch "$arch" --output "$output_target")
-            if [ $? -ne 0 ]; then
-                echo "Build failed for $package_name on $os/$arch"
-                exit 1
-            fi
-            echo ""
-        done
+    echo "Source directory: $source_dir"
+    echo "Building for $platform_count platform(s): $platforms_json"
+    # 遍历每个平台
+    local i
+    for ((i=0; i<platform_count; i++)); do
+        local os=$(echo "$platforms_json" | jq -r ".[$i].os")
+        local arch=$(echo "$platforms_json" | jq -r ".[$i].arch")
+        
+        echo "==== Building $package_name for $os/$arch ===="
+        
+        # 创建输出目录
+        local output_dir="$current_dir/packages/$package_name/$os/$arch/$version"
+        mkdir -p "$output_dir"
+        
+        # 设置输出文件名
+        local output_file="$package_name"
+        if [ "$os" = "windows" ]; then
+            output_file="$output_file.exe"
+        fi
+        
+        # 完整输出路径
+        local output_target="$output_dir/$output_file"
+        
+        echo "Output target: $output_target"
+        
+        # 到目标路径执行build.py
+        (cd "$source_dir" && python ./build.py --software "$version" --os "$os" --arch "$arch" --output "$output_target")
+        if [ $? -ne 0 ]; then
+            echo "Build failed for $package_name on $os/$arch"
+            exit 1
+        fi
+        echo ""
     done
     
     echo "All builds completed successfully for package: $package_name"
@@ -141,85 +138,158 @@ build_app() {
 build_conf() {
     local package_name="$1"
     local version="$2"
-    local path="$3"
-    local target="$4"
-    
-    echo "Starting configuration build for package: $package_name, version: $version"
-    echo ""
+    local source_dir="$3"
+    local platforms_json="$4"
     
     # 获取当前路径的绝对路径
     local current_dir=$(pwd)
-    echo "Current directory: $current_dir"
-    
-    # 使用传入的path参数作为源路径
-    local source_dir="$current_dir/$path"
-    echo "Source directory: $source_dir"
-    
-    # 检查源路径是否存在
-    if [ ! -d "$source_dir" ]; then
-        echo "Error: Source directory $source_dir does not exist!"
+    # 解析platforms数组
+    local platform_count=$(echo "$platforms_json" | jq 'length')
+    # Get target from packages.json
+    local target=$(jq -r ".builds[] | select(.name == \"${package_name}\") | .target" packages.json)
+    if [ -z "$target" ] || [ "$target" = "null" ]; then
+        echo "Error: 'target' not found for package '${package_name}' in packages.json!"
         exit 1
     fi
     
-    # Supported platforms and architectures
-    PLATFORMS=("linux" "windows" "darwin")
-    ARCHITECTURES=("amd64" "arm64")
+    echo "Starting configuration build for package: $package_name, version: $version"
+    echo ""
+    echo "Source directory: $source_dir"
+    echo "Building for $platform_count platform(s): $platforms_json"
     
-    # 复制所有平台的配置文件
-    for os in "${PLATFORMS[@]}"; do
-        for arch in "${ARCHITECTURES[@]}"; do
-            echo "==== Building $package_name for $os/$arch ===="
-            
-            # 创建输出目录
-            local output_dir="$current_dir/$package_name/$os/$arch/$version"
-            mkdir -p "$output_dir"
-            
-            # 源文件路径
-            local source_file="$source_dir/$os/$arch/$target"
-            # 目标文件路径
-            local target_file="$output_dir/$target"
-            
-            # 检查源文件是否存在
-            if [ ! -f "$source_file" ]; then
-                if [ -f "$source_dir/common/$target" ]; then
-                    source_file="$source_dir/common/$target"
-                else 
-                    echo "Warning: Source file $source_file does not exist, skipping..."
-                    continue
-                fi
+    # 遍历每个平台
+    local i
+    for ((i=0; i<platform_count; i++)); do
+        local os=$(echo "$platforms_json" | jq -r ".[$i].os")
+        local arch=$(echo "$platforms_json" | jq -r ".[$i].arch")
+        
+        echo "==== Building $package_name for $os/$arch ===="
+        
+        # 创建输出目录
+        local output_dir="$current_dir/packages/$package_name/$os/$arch/$version"
+        mkdir -p "$output_dir"
+        
+        # 源文件路径
+        local source_file="$source_dir/$os/$arch/$target"
+        # 目标文件路径
+        local target_file="$output_dir/$target"
+        
+        # 检查源文件是否存在
+        if [ ! -f "$source_file" ]; then
+            if [ -f "$source_dir/common/$target" ]; then
+                source_file="$source_dir/common/$target"
+            else
+                echo "Warning: Source file $source_file does not exist, skipping..."
+                continue
             fi
-            
-            echo "Source file: $source_file"
-            echo "Target file: $target_file"
-            
-            # 复制文件
-            cp "$source_file" "$target_file"
-            if [ $? -ne 0 ]; then
-                echo "Error: Failed to copy $source_file to $target_file"
-                exit 1
-            fi
-            
-            echo "Successfully copied $source_file to $target_file"
-            echo ""
-        done
+        fi
+        
+        echo "Source file: $source_file"
+        echo "Target file: $target_file"
+        
+        # 复制文件
+        cp "$source_file" "$target_file"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to copy $source_file to $target_file"
+            exit 1
+        fi
+        
+        echo "Successfully copied $source_file to $target_file"
+        echo ""
     done
     
     echo "All configuration builds completed successfully for package: $package_name"
 }
 
+# Function to build zip package directories
+build_zip() {
+    local package_name="$1"
+    local version="$2"
+    local source_dir="$3"
+    local platforms_json="$4"
+    
+    # 获取当前路径的绝对路径
+    local current_dir=$(pwd)
+    # 解析platforms数组
+    local platform_count=$(echo "$platforms_json" | jq 'length')
+
+    echo "Starting zip package build for package: $package_name, version: $version"
+    echo ""
+    echo "Source directory: $source_dir"
+    echo "Building for $platform_count platform(s): $platforms_json"
+    
+    # 遍历每个平台
+    local i
+    for ((i=0; i<platform_count; i++)); do
+        local os=$(echo "$platforms_json" | jq -r ".[$i].os")
+        local arch=$(echo "$platforms_json" | jq -r ".[$i].arch")
+        
+        echo "==== Building $package_name for $os/$arch ===="
+        
+        # 创建输出目录
+        local output_dir="$current_dir/packages/$package_name/$os/$arch/$version"
+        mkdir -p "$output_dir"
+        
+        # 默认zip文件名：包名.zip
+        local zip_filename="${package_name}.zip"
+        # 目标zip文件路径
+        local target_zip="$output_dir/$zip_filename"
+        
+        # 平台特定源目录路径
+        local platform_source_dir="$source_dir/$os/$arch/$package_name"
+        
+        # 检查平台特定目录是否存在，如果不存在则使用common目录
+        if [ ! -d "$platform_source_dir" ]; then
+            echo "Warning: Platform directory $platform_source_dir does not exist"
+            if [ -d "$source_dir/common/$package_name" ]; then
+                platform_source_dir="$source_dir/common/$package_name"
+                echo "Using common directory: $platform_source_dir"
+            else
+                echo "Warning: Common directory $source_dir/common does not exist either, skipping..."
+                continue
+            fi
+        fi
+        
+        echo "Source directory: $platform_source_dir"
+        echo "Target zip file: $target_zip"
+        
+        # 将源目录打包成zip文件
+        (cd "$platform_source_dir" && zip -r "$target_zip" .)
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to create zip package for $package_name on $os/$arch"
+            exit 1
+        fi
+        
+        echo "Successfully created zip package: $target_zip"
+        echo ""
+    done
+    
+    echo "All zip packages built successfully for package: $package_name"
+}
+
 build_package() {
     local package="$1"
     
-    # 从package-versions.json中获取指定包的版本号和路径
+    # 从packages.json中获取指定包的版本号和路径
     local package_version=$(jq -r ".builds[] | select(.name == \"${package}\") | .version" packages.json)
     local package_path=$(jq -r ".builds[] | select(.name == \"${package}\") | .path" packages.json)
     local package_type=$(jq -r ".builds[] | select(.name == \"${package}\") | .type" packages.json)
+    local package_platforms=$(jq -r ".builds[] | select(.name == \"${package}\") | .platforms" packages.json)
 
     if [ -z "$package_path" ] || [ "$package_path" = "null" ]; then
         echo "Skipping build step for ${package}..."
         return
     fi
 
+    # 计算source_dir
+    local current_dir=$(pwd)
+    local source_dir="$current_dir/$package_path"
+    # 检查源路径是否存在
+    if [ ! -d "$source_dir" ]; then
+        echo "Error: Source directory $source_dir does not exist!"
+        exit 1
+    fi
+    
     if [ -z "$package_version" ] || [ "$package_version" = "null" ]; then
         echo "Error: Version not found for package '${package}' in packages.json!"
         exit 1
@@ -230,19 +300,20 @@ build_package() {
         exit 1
     fi
     
+    # 如果没有定义platforms，则使用common
+    if [ -z "$package_platforms" ] || [ "$package_platforms" = "null" ] || [ "$package_platforms" = "" ]; then
+        package_platforms='[{"os":"common","arch":"common"}]'
+    fi
+    
     echo "=============================================="
-    echo "Building package: $package, version: $package_version, path: $package_path"
+    echo "Building package: $package, version: $package_version, path: $package_path, type: $package_type"
     echo "=============================================="
     if [ "exec" == "$package_type" ]; then
-        build_app "${package}" "${package_version}" "${package_path}"
+        build_app "${package}" "${package_version}" "${source_dir}" "${package_platforms}"
+    elif [ "zip" == "$package_type" ]; then
+        build_zip "${package}" "${package_version}" "${source_dir}" "${package_platforms}"
     else
-        local package_target=$(jq -r ".builds[] | select(.name == \"${package}\") | .target" packages.json)
-
-        if [ -z "$package_target" ] || [ "$package_target" = "null" ]; then
-            echo "Error: 'target' not found for package '${package}' in packages.json!"
-            exit 1
-        fi
-        build_conf "${package}" "${package_version}" "${package_path}" "${package_target}"
+        build_conf "${package}" "${package_version}" "${source_dir}" "${package_platforms}"
     fi
 }
 
@@ -261,6 +332,7 @@ build_packages() {
     echo ""
 
     # 遍历每个包
+    local i
     for ((i=0; i<package_count; i++)); do
         local package_name=$(echo "$packages_json" | jq -r ".builds[$i].name")
 
@@ -326,6 +398,10 @@ pack_dir_packages() {
     # 提取路径信息，先去掉末尾多余的/，再去掉开头多余的./
     local clean_packages=${package_dir%/}
     local clean_packages=${clean_packages#./}
+    
+    # 去掉开头的 'packages/' 基础路径
+    local clean_packages=${clean_packages#packages/}
+    
     local path_parts=(${clean_packages//\// })
     
     # 检查路径是否包含足够的部分
@@ -347,6 +423,7 @@ pack_dir_packages() {
     local pkg_filename=$(get_package_filename "${pkg_name}")
     
     # 查找目录中非package.json的文件
+    local file
     for file in "${package_dir}"*; do
         [ -f "${file}" ] || continue
         [ "$(basename "${file}")" = "package.json" ] && continue
@@ -381,13 +458,16 @@ cleanup_old_versions() {
     echo "Cleaning up old versions for package: $package_name, keeping version: $target_version"
     
     # 检查包目录是否存在
-    if [ ! -d "${package_name}" ]; then
-        echo "Warning: Package directory '${package_name}' not found, skipping clean."
+    if [ ! -d "packages/${package_name}" ]; then
+        echo "Warning: Package directory 'packages/${package_name}' not found, skipping clean."
         return 0
     fi
     
     # 遍历所有平台和架构目录
-    for os_dir in "${package_name}"/*/; do
+    local os_dir
+    local arch_dir
+    local version_dir
+    for os_dir in "packages/${package_name}"/*/; do
         [ -d "${os_dir}" ] || continue
         
         local os=$(basename "${os_dir}")
@@ -435,6 +515,7 @@ cleanup_all_old_versions() {
     echo ""
     
     # 遍历每个包
+    local i
     for ((i=0; i<package_count; i++)); do
         local package_name=$(echo "$packages_json" | jq -r ".builds[$i].name")
         
@@ -453,16 +534,19 @@ cleanup_all_old_versions() {
 }
 
 upload_package() {
-    local package=$1
-    local ip=$2
-    local port=$3
-    local rootDir=$4
+    local source_dir=$1
+    local package=$2
+    local ip=$3
+    local port=$4
+    local rootDir=$5
 
     local formalDir="${rootDir}/costrict"
     local uploadDir="${rootDir}/costrict-upload"
 
-    echo rsync -avzP -e "ssh -p ${port}" ${package} "root@${ip}:${uploadDir}/"
-    rsync -avzP -e "ssh -p ${port}" ${package} "root@${ip}:${uploadDir}/"
+    local package_path="${source_dir}/${package}"
+
+    echo rsync -avzP -e "ssh -p ${port}" ${package_path} "root@${ip}:${uploadDir}/"
+    rsync -avzP -e "ssh -p ${port}" ${package_path} "root@${ip}:${uploadDir}/"
 
     ssh -p "${port}" "root@${ip}" <<EOF
         set -e
@@ -478,7 +562,8 @@ EOF
 }
 
 upload_package_clouds() {
-    local package=$1
+    local source_dir=$1
+    local package=$2
 
     source ./.env
 
@@ -486,22 +571,140 @@ upload_package_clouds() {
         echo "=============================================="
         echo "Upload package $package to ${test_host}..."
         echo "=============================================="
-        upload_package "${package}" "${test_host}" "${test_port}" "${test_path}"
+        upload_package "${source_dir}" "${package}" "${test_host}" "${test_port}" "${test_path}"
     fi
 
     if [ "$upload_prod" = true ]; then
         echo "=============================================="
         echo "Upload package $package to ${prod_host}..."
         echo "=============================================="
-        upload_package "${package}" "${prod_host}" "${prod_port}" "${prod_path}"
+        upload_package "${source_dir}" "${package}" "${prod_host}" "${prod_port}" "${prod_path}"
     fi
 
     if [ "$upload_qianliu" = true ]; then
         echo "=============================================="
         echo "Upload package $package to ${qianliu_host}..."
         echo "=============================================="
-        upload_package "${package}" "${qianliu_host}" "${qianliu_port}" "${qianliu_path}"
+        upload_package "${source_dir}" "${package}" "${qianliu_host}" "${qianliu_port}" "${qianliu_path}"
     fi
+}
+
+process_package() {
+    local package_name=$1
+    # 处理指定包
+    mkdir -p "packages/${package_name}"
+
+    if [ "$need_clean" = true ]; then
+        echo "Cleaning up old versions for package: $package_name"
+        cleanup_old_versions "$package_name"
+    else
+        echo "Skipping clean step for ${package_name}..."
+    fi
+
+    if [ "$need_build" = true ]; then
+        echo "Building target for ${package_name}..."
+        build_package "${package_name}"
+    else
+        echo "Skipping build step for ${package_name}..."
+    fi
+
+    if [ "$need_pack" = true ]; then
+        echo "Building package.json for ${package_name}..."
+        # 检查私钥文件是否存在
+        if [ ! -f "${key_file}" ]; then
+            echo "Error: Private key file '${key_file}' not found!"
+            exit 1
+        fi
+        for package_dir in "packages/${package_name}"/*/*/*/; do
+            [ -d "${package_dir}" ] || continue
+            pack_dir_packages "${package_dir}"
+        done
+    else
+        echo "Skipping package step for ${package_name}..."
+    fi
+
+    if [ "$need_index" = true ]; then
+        echo "Building index for ${package_name}..."
+        index_packages "packages/${package_name}"
+    else
+        echo "Skipping index step for ${package_name}..."
+    fi
+
+    if [ "$NEED_UPLOAD" = true ]; then
+        echo "Uploading package: $package_name"
+        upload_package_clouds "packages" "${package_name}"
+    fi
+}
+
+# Function to process multiple packages
+process_packages() {
+    local packages=$1
+    
+    # 解析包列表（支持空格分隔的包名）
+    local package_list=()
+    if [ -n "$packages" ]; then
+        IFS=' ' read -ra package_list <<< "$packages"
+    fi
+    
+    # 如果包列表为空，从packages.json读取所有包
+    if [ ${#package_list[@]} -eq 0 ]; then
+        echo "No packages specified, reading from packages.json..."
+        local packages_json=$(cat packages.json)
+        local package_count=$(echo "$packages_json" | jq '.builds | length')
+        
+        for ((i=0; i<package_count; i++)); do
+            package_list+=("$(echo "$packages_json" | jq -r ".builds[$i].name")")
+        done
+    fi
+    
+    echo "Processing ${#package_list[@]} package(s): ${package_list[*]}"
+    echo ""
+    
+    # 遍历每个包并处理
+    for pkg in "${package_list[@]}"; do
+        echo "=============================================="
+        echo "Processing package: $pkg"
+        echo "=============================================="
+        process_package "$pkg"
+        echo ""
+    done
+    
+    echo "All packages processed successfully!"
+}
+
+# Function to process packages by type
+process_type() {
+    local target_type=$1
+    
+    if [ -z "$target_type" ]; then
+        echo "Error: Target type is empty!"
+        exit 1
+    fi
+    
+    echo "Processing packages of type: $target_type"
+    echo ""
+    
+    # 使用jq解析JSON
+    local packages_json=$(cat packages.json)
+    local package_count=$(echo "$packages_json" | jq '.builds | length')
+    
+    local processed_count=0
+    local i
+    for ((i=0; i<package_count; i++)); do
+        local package_name=$(echo "$packages_json" | jq -r ".builds[$i].name")
+        local package_type=$(echo "$packages_json" | jq -r ".builds[$i].type // empty")
+        
+        if [ "$package_type" = "$target_type" ]; then
+            echo "=============================================="
+            echo "Processing package: $package_name (type: $package_type)"
+            echo "=============================================="
+            process_package "$package_name"
+            echo ""
+            ((processed_count++))
+        fi
+    done
+    
+    echo "Processed $processed_count package(s) of type '$target_type'"
 }
 
 if [ "$need_clean" = true ] || [ "$need_build" = true ] || [ "$need_pack" = true ]; then
@@ -524,101 +727,21 @@ fi
 
 if [ "$need_upload_packages" = true ]; then
     echo "Uploading packages.json..."
-    upload_package_clouds "packages.json"
+    upload_package_clouds "." "packages.json"
     exit 0
 fi
 
-if [ -z "$package" ]; then
+if [ -n "$package_type" ]; then
+    # 处理指定类型的包
+    process_type "$package_type"
+elif [ -n "$packages" ]; then
+    # 处理指定的包列表
+    process_packages "$packages"
+elif [ -z "$package" ]; then
     # 处理所有包
-    if [ "$need_clean" = true ]; then
-        echo "Cleaning up old versions for all packages..."
-        cleanup_all_old_versions
-    else
-        echo "Skipping clean step for all packages..."
-    fi
-
-    if [ "$need_build" = true ]; then
-        echo "building application for all packages..."
-        build_packages
-    else
-        echo "Skipping build step for all packages..."
-    fi
-
-    if [ "$need_pack" = true ]; then
-        echo "Building package.json for all packages..."
-        # 检查私钥文件是否存在
-        if [ ! -f "${key_file}" ]; then
-            echo "Error: Private key file '${key_file}' not found!"
-            exit 1
-        fi
-        for package_dir in */*/*/*/; do
-            [ -d "${package_dir}" ] || continue
-            pack_dir_packages "${package_dir}"
-        done
-    else
-        echo "Skipping package step for all packages..."
-    fi
-    
-    if [ "$need_index" = true ]; then
-        echo "Building index for all packages..."
-        index_packages .
-    else
-        echo "Skipping index step for all packages..."
-    fi
-
-    if [ "$need_upload" = true ]; then
-        echo "Uploading all packages..."
-        for package_dir in */; do
-            package=${package_dir%/}
-            [ -d "${package_dir}" ] || continue
-            [ ! -f "${package_dir}platforms.json" ] && continue
-            upload_package_clouds "${package}"
-        done
-    fi
+    process_packages ""
 else
-    # 处理指定包
-    mkdir -p "${package}"
-
-    if [ "$need_clean" = true ]; then
-        echo "Cleaning up old versions for package: $package"
-        cleanup_old_versions "$package"
-    else
-        echo "Skipping clean step for ${package}..."
-    fi
-
-    if [ "$need_build" = true ]; then
-        echo "Building target for ${package}..."
-        build_package "${package}"
-    else
-        echo "Skipping build step for ${package}..."
-    fi
-
-    if [ "$need_pack" = true ]; then
-        echo "Building package.json for ${package}..."
-        # 检查私钥文件是否存在
-        if [ ! -f "${key_file}" ]; then
-            echo "Error: Private key file '${key_file}' not found!"
-            exit 1
-        fi
-        for package_dir in "${package}"/*/*/*/; do
-            [ -d "${package_dir}" ] || continue
-            pack_dir_packages "${package_dir}"
-        done
-    else
-        echo "Skipping package step for ${package}..."
-    fi
-
-    if [ "$need_index" = true ]; then
-        echo "Building index for ${package}..."
-        index_packages "${package}"
-    else
-        echo "Skipping index step for ${package}..."
-    fi
-
-    if [ "$need_upload" = true ]; then
-        echo "Uploading package: $package"
-        upload_package_clouds "${package}"
-    fi
+    process_package "$package"
 fi
 
 echo "Build completed."

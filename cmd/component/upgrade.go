@@ -25,7 +25,7 @@ func upgradePackage() error {
 	u := utils.NewUpgrader(optUpgradePackageName, utils.UpgradeConfig{
 		BaseUrl:   env.BaseUrl + "/costrict",
 		PublicKey: publicKey,
-	})
+	}, nil)
 
 	var newVer *utils.VersionNumber
 	if optUpgradeVersion != "" {

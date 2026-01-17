@@ -29,8 +29,8 @@ func formatSize(size uint64) string {
 /**
  *	获取包详细元数据信息
  */
-func getPackageDetailInfo(infoUrl string) (*utils.PackageVersion, error) {
-	data, err := utils.GetBytes(infoUrl, nil)
+func getPackageDetailInfo(u *utils.Upgrader, infoUrl string) (*utils.PackageVersion, error) {
+	data, err := u.GetBytes(infoUrl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func listPackages(verbose bool) error {
 	// 获取包列表以检查Details中是否存在该包
 	u := utils.NewUpgrader("", utils.UpgradeConfig{
 		BaseUrl: env.BaseUrl + "/costrict",
-	})
+	}, nil)
 
 	packages, err := u.GetRemotePackages()
 	if err != nil {
@@ -105,7 +105,7 @@ func listPackages(verbose bool) error {
 func listPackage(packageName string, verbose bool) ([]*orderedmap.OrderedMap, error) {
 	u := utils.NewUpgrader(packageName, utils.UpgradeConfig{
 		BaseUrl: env.BaseUrl + "/costrict",
-	})
+	}, nil)
 	// 获取该软件包支持的所有平台
 	pkg, err := u.GetRemotePlatforms()
 	if err != nil {
@@ -191,7 +191,7 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 		Os:      os,
 		Arch:    arch,
 		BaseUrl: env.BaseUrl + "/costrict",
-	})
+	}, nil)
 
 	// 获取该平台的远程版本列表
 	versList, err := u.GetRemoteVersions()
@@ -218,7 +218,7 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 			row.Description = "*"
 			// 获取版本的详细元数据
 			if ver.InfoUrl != "" {
-				pkgInfo, err := getPackageDetailInfo(u.BaseUrl + ver.InfoUrl)
+				pkgInfo, err := getPackageDetailInfo(u, u.BaseUrl+ver.InfoUrl)
 				if err == nil {
 					row.Size = formatSize(pkgInfo.Size)
 					row.Checksum = pkgInfo.Checksum
@@ -239,7 +239,7 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]*orderedmap.Ord
 			row.Description = "*"
 			// 获取版本的详细元数据（仅获取description）
 			if ver.InfoUrl != "" {
-				pkgInfo, err := getPackageDetailInfo(u.BaseUrl + ver.InfoUrl)
+				pkgInfo, err := getPackageDetailInfo(u, u.BaseUrl+ver.InfoUrl)
 				if err == nil {
 					row.Description = pkgInfo.Description
 				}

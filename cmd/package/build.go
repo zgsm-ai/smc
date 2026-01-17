@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/zgsm-ai/smc/internal/utils"
@@ -41,6 +42,7 @@ func makePackage() error {
 	pkgData.ChecksumAlgo = "md5"
 	pkgData.Sign = hex.EncodeToString(data)
 	pkgData.Description = optDescription
+	pkgData.ReleaseTime = time.Now().Local().Format("2006-01-02 15:04:05")
 	err = pkgData.VersionId.Parse(optVersion)
 	if err != nil {
 		return fmt.Errorf("parse version error: %v", err)

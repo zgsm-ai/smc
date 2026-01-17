@@ -76,7 +76,7 @@ func activatePackage() error {
 	}
 	u := utils.NewUpgrader(optActivatePackageName, utils.UpgradeConfig{
 		BaseUrl: env.BaseUrl + "/costrict",
-	})
+	}, nil)
 	pkg, err := u.GetLocalVersion(&ver)
 	if err != nil {
 		fmt.Printf("The version '%s' is not exist\n", ver.String())

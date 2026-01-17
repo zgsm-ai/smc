@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/iancoleman/orderedmap"
@@ -34,37 +35,55 @@ type PackageInfo struct {
 	Activated bool
 }
 
-/**
- *	判断包是否已经在包列表中
- *	基于包名、操作系统、架构和版本判断唯一性
- */
-func findPackage(pkgInfo utils.PackageVersion, pkgList []PackageInfo) *PackageInfo {
-	for i, p := range pkgList {
-		pkg := p.Ver
-		if pkg.PackageName == pkgInfo.PackageName &&
-			pkg.Os == pkgInfo.Os &&
-			pkg.Arch == pkgInfo.Arch &&
-			pkg.VersionId.Major == pkgInfo.VersionId.Major &&
-			pkg.VersionId.Minor == pkgInfo.VersionId.Minor &&
-			pkg.VersionId.Micro == pkgInfo.VersionId.Micro {
-			return &pkgList[i]
+func addPackage(pkg *utils.PackageVersion, pkgs map[string]*PackageInfo) error {
+	key := pkg.PackageName + pkg.VersionId.String()
+
+	if k, exists := pkgs[key]; exists {
+		if !k.Activated {
+			return fmt.Errorf("package %s already exists", pkg.PackageName)
 		}
+	} else {
+		pkgs[key] = &PackageInfo{Ver: pkg, Activated: false}
 	}
 	return nil
 }
 
-/**
- *	扫描目录并收集包信息
- */
-func scanPackageDirectory(packageDir string, packageName string) ([]PackageInfo, error) {
+func scanAllPackages(packageDir string, pkgs map[string]*PackageInfo) error {
+	if _, err := os.Stat(packageDir); os.IsNotExist(err) {
+		return err
+	}
+	scanVersions(packageDir, pkgs)
+	for _, v := range pkgs {
+		v.Activated = true
+	}
+
+	cachesDir := filepath.Join(packageDir, "caches")
+	err := filepath.WalkDir(cachesDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			return nil
+		}
+		if path == cachesDir {
+			return nil
+		}
+		versDir := filepath.Join(cachesDir, d.Name())
+		scanVersions(versDir, pkgs)
+		return filepath.SkipDir
+	})
+
+	return err
+}
+
+func scanVersions(packageDir string, pkgs map[string]*PackageInfo) error {
 	// 检查目录是否存在
 	if _, err := os.Stat(packageDir); os.IsNotExist(err) {
-		return nil, err
+		return err
 	}
 
 	// 遍历目录中的 *.json 文件
-	var packageInfos []PackageInfo
-	err := filepath.WalkDir(packageDir, func(path string, d fs.DirEntry, err error) error {
+	filepath.WalkDir(packageDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -89,28 +108,10 @@ func scanPackageDirectory(packageDir string, packageName string) ([]PackageInfo,
 		if pkgInfo.PackageName == "" {
 			return nil
 		}
-		// 如果指定了包名，则只返回匹配的包
-		if packageName != "" && pkgInfo.PackageName != packageName {
-			return nil
-		}
-
-		// 检查包是否已经在列表中，确保唯一性
-		pkg := findPackage(pkgInfo, packageInfos)
-		if pkg != nil {
-			pkg.Activated = true
-		} else {
-			packageInfos = append(packageInfos, PackageInfo{
-				Ver:       &pkgInfo,
-				Activated: false,
-			})
-		}
+		addPackage(&pkgInfo, pkgs)
 		return nil
 	})
-
-	if err != nil {
-		return nil, err
-	}
-	return packageInfos, nil
+	return nil
 }
 
 /**
@@ -120,17 +121,33 @@ func packageList(packageName string, verbose bool) error {
 	// 获取 .costrict/package 目录路径
 	u := utils.NewUpgrader(packageName, utils.UpgradeConfig{
 		BaseUrl: env.BaseUrl + "/costrict",
-	})
+	}, nil)
 	packageDir := filepath.Join(u.BaseDir, "package")
 
 	// 扫描目录并收集包信息
-	packageInfos, err := scanPackageDirectory(packageDir, packageName)
+	pkgs := make(map[string]*PackageInfo)
+	err := scanAllPackages(packageDir, pkgs)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
+	packageInfos := make([]PackageInfo, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		if packageName != "" && pkg.Ver.PackageName != packageName {
+			continue
+		}
+		packageInfos = append(packageInfos, *pkg)
+	}
+
+	// 排序
+	sort.Slice(packageInfos, func(i, j int) bool {
+		if packageInfos[i].Ver.PackageName == packageInfos[j].Ver.PackageName {
+			return utils.CompareVersion(packageInfos[i].Ver.VersionId, packageInfos[j].Ver.VersionId) < 0
+		}
+		return packageInfos[i].Ver.PackageName < packageInfos[j].Ver.PackageName
+	})
 
 	// 如果指定了包名且只有一个包，显示详细信息
-	if len(packageInfos) == 1 && verbose {
+	if len(pkgs) == 1 && verbose {
 		utils.PrintYaml(packageInfos[0].Ver)
 		return nil
 	}
