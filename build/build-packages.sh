@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# 确保smc命令在PATH中
+export PATH="$PATH:/root/.costrict/bin"
+
 #
 # 包管理系统的目录结构：
 #
