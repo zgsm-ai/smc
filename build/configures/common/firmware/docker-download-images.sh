@@ -1,7 +1,7 @@
 #!/bin/sh
 
 echo "生成镜像环境文件‘.images.env’和镜像列表文件‘.images.list’"
-bash scripts/get-images-env.sh
+bash scripts/gen-env-file.sh
 
 # 验证镜像是否存在
 echo "验证镜像..."

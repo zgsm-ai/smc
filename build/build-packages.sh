@@ -36,29 +36,29 @@ usage() {
 
 enable_upload() {
     case "$1" in
-        def) NEED_UPLOAD=true; upload_prod=true; upload_test=true; upload_qianliu=false;;
-        all) NEED_UPLOAD=true; upload_prod=true; upload_test=true; upload_qianliu=true;;
-        prod) NEED_UPLOAD=true; upload_prod=true;;
-        test) NEED_UPLOAD=true; upload_test=true;;
-        qianliu) NEED_UPLOAD=true; upload_qianliu=true;;
+        def) NEED_UPLOAD=true; UPLOAD_PROD=true; UPLOAD_TEST=true; UPLOAD_QIANLIU=false;;
+        all) NEED_UPLOAD=true; UPLOAD_PROD=true; UPLOAD_TEST=true; UPLOAD_QIANLIU=true;;
+        prod) NEED_UPLOAD=true; UPLOAD_PROD=true;;
+        test) NEED_UPLOAD=true; UPLOAD_TEST=true;;
+        qianliu) NEED_UPLOAD=true; UPLOAD_QIANLIU=true;;
         *) usage;;
     esac
 }
 # 默认私钥文件
-key_file="costrict-private.pem"
+KEY_FILE="costrict-private.pem"
 
 # 默认参数值
-need_clean=false
-need_build=false
-need_pack=false
-need_index=false
+NEED_CLEAN=false
+NEED_BUILD=false
+NEED_PACK=false
+NEED_INDEX=false
 NEED_UPLOAD=false
-need_upload_packages=false
-upload_prod=false
-upload_test=false
-upload_qianliu=false
-package_type=""
-packages=""
+NEED_UPLOAD_PACKAGES=false
+UPLOAD_PROD=false
+UPLOAD_TEST=false
+UPLOAD_QIANLIU=false
+PACKAGE_TYPE=""
+PACKAGES=""
 
 # Parse command line options
 args=$(getopt -o hp:K: --long help,package:,packages:,kind:,type:,key:,clean,build,pack,index,def,upload,upload-packages,upload-to: -n 'build-packages.sh' -- "$@")
@@ -69,16 +69,16 @@ eval set -- "$args"
 while true; do
     case "$1" in
         -p|--package) package="$2"; shift 2;;
-        --packages) packages="$2"; shift 2;;
-        --type) package_type="$2"; shift 2;;
-        --key) key_file="$2"; shift 2;;
-        --clean) need_clean=true; shift;;
-        --build) need_build=true; shift;;
-        --pack) need_pack=true; shift;;
-        --index) need_index=true; shift;;
-        --def) need_build=true; need_pack=true; need_index=true; shift;;
+        --packages) PACKAGES="$2"; shift 2;;
+        --type) PACKAGE_TYPE="$2"; shift 2;;
+        --key) KEY_FILE="$2"; shift 2;;
+        --clean) NEED_CLEAN=true; shift;;
+        --build) NEED_BUILD=true; shift;;
+        --pack) NEED_PACK=true; shift;;
+        --index) NEED_INDEX=true; shift;;
+        --def) NEED_BUILD=true; NEED_PACK=true; NEED_INDEX=true; shift;;
         --upload) enable_upload "def"; shift;;
-        --upload-packages) need_upload_packages=true; shift;;
+        --upload-packages) NEED_UPLOAD_PACKAGES=true; shift;;
         --upload-to) enable_upload "$2"; shift 2;;
         -h|--help) usage; exit 0;;
         --) shift; break;;
@@ -391,8 +391,8 @@ pack_package() {
     local description="$7"
     local filename="$8"
     
-    echo "smc package build ${package} -f ${file} -k ${key_file} --os ${os} --arch ${arch} --version ${ver} --type ${type} --filename ${filename} --description ${description}"
-    smc package build ${package} -f ${file} -k ${key_file} --os ${os} --arch ${arch} --version ${ver} --type ${type} --filename "${filename}" --description "${description}"
+    echo "smc package build ${package} -f ${file} -k ${KEY_FILE} --os ${os} --arch ${arch} --version ${ver} --type ${type} --filename ${filename} --description ${description}"
+    smc package build ${package} -f ${file} -k ${KEY_FILE} --os ${os} --arch ${arch} --version ${ver} --type ${type} --filename "${filename}" --description "${description}"
 }
 
 pack_dir_packages() {
@@ -570,21 +570,21 @@ upload_package_clouds() {
 
     source ./.env
 
-    if [ "$upload_test" = true ]; then
+    if [ "$UPLOAD_TEST" = true ]; then
         echo "=============================================="
         echo "Upload package $package to ${test_host}..."
         echo "=============================================="
         upload_package "${source_dir}" "${package}" "${test_host}" "${test_port}" "${test_path}"
     fi
 
-    if [ "$upload_prod" = true ]; then
+    if [ "$UPLOAD_PROD" = true ]; then
         echo "=============================================="
         echo "Upload package $package to ${prod_host}..."
         echo "=============================================="
         upload_package "${source_dir}" "${package}" "${prod_host}" "${prod_port}" "${prod_path}"
     fi
 
-    if [ "$upload_qianliu" = true ]; then
+    if [ "$UPLOAD_QIANLIU" = true ]; then
         echo "=============================================="
         echo "Upload package $package to ${qianliu_host}..."
         echo "=============================================="
@@ -597,25 +597,25 @@ process_package() {
     # 处理指定包
     mkdir -p "packages/${package_name}"
 
-    if [ "$need_clean" = true ]; then
+    if [ "$NEED_CLEAN" = true ]; then
         echo "Cleaning up old versions for package: $package_name"
         cleanup_old_versions "$package_name"
     else
         echo "Skipping clean step for ${package_name}..."
     fi
 
-    if [ "$need_build" = true ]; then
+    if [ "$NEED_BUILD" = true ]; then
         echo "Building target for ${package_name}..."
         build_package "${package_name}"
     else
         echo "Skipping build step for ${package_name}..."
     fi
 
-    if [ "$need_pack" = true ]; then
+    if [ "$NEED_PACK" = true ]; then
         echo "Building package.json for ${package_name}..."
         # 检查私钥文件是否存在
-        if [ ! -f "${key_file}" ]; then
-            echo "Error: Private key file '${key_file}' not found!"
+        if [ ! -f "${KEY_FILE}" ]; then
+            echo "Error: Private key file '${KEY_FILE}' not found!"
             exit 1
         fi
         for package_dir in "packages/${package_name}"/*/*/*/; do
@@ -626,7 +626,7 @@ process_package() {
         echo "Skipping package step for ${package_name}..."
     fi
 
-    if [ "$need_index" = true ]; then
+    if [ "$NEED_INDEX" = true ]; then
         echo "Building index for ${package_name}..."
         index_packages "packages/${package_name}"
     else
@@ -710,7 +710,7 @@ process_type() {
     echo "Processed $processed_count package(s) of type '$target_type'"
 }
 
-if [ "$need_clean" = true ] || [ "$need_build" = true ] || [ "$need_pack" = true ]; then
+if [ "$NEED_CLEAN" = true ] || [ "$NEED_BUILD" = true ] || [ "$NEED_PACK" = true ]; then
     # 检查jq工具是否可用
     if ! command -v jq >/dev/null 2>&1; then
         echo "Error: jq command not found! Please install jq to parse JSON files."
@@ -728,18 +728,18 @@ if [ "$need_clean" = true ] || [ "$need_build" = true ] || [ "$need_pack" = true
     fi
 fi
 
-if [ "$need_upload_packages" = true ]; then
+if [ "$NEED_UPLOAD_PACKAGES" = true ]; then
     echo "Uploading packages.json..."
     upload_package_clouds "." "packages.json"
     exit 0
 fi
 
-if [ -n "$package_type" ]; then
+if [ -n "$PACKAGE_TYPE" ]; then
     # 处理指定类型的包
-    process_type "$package_type"
-elif [ -n "$packages" ]; then
+    process_type "$PACKAGE_TYPE"
+elif [ -n "$PACKAGES" ]; then
     # 处理指定的包列表
-    process_packages "$packages"
+    process_packages "$PACKAGES"
 elif [ -z "$package" ]; then
     # 处理所有包
     process_packages ""

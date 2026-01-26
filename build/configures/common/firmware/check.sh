@@ -174,7 +174,7 @@ validate_install_environment() {
     # ========== 5. 检查 scripts 子脚本 ==========
     log "INFO" "检查 scripts 子脚本..."
     local required_scripts=(
-        "scripts/get-images-env.sh"
+        "scripts/gen-env-file.sh"
         "scripts/verify-images.sh"
         "scripts/pull-images.sh"
     )
