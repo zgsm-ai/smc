@@ -88,7 +88,7 @@ parse_arguments() {
 }
 
 fix_permissions() {
-    local target_base="${INSTALL_DIR}"
+    local base_dir="${INSTALL_DIR}"
     
     # 需要修正权限的目录（相对于安装目录）
     declare -a dirs=(
@@ -102,7 +102,7 @@ fix_permissions() {
     log "INFO" "开始修正目录权限..."
     
     for dir in "${dirs[@]}"; do
-        local full_path="${target_base}/${dir}"
+        local full_path="${base_dir}/${dir}"
         
         # 自动创建目录（如果不存在）
         if [[ ! -d "$full_path" ]]; then
@@ -132,18 +132,18 @@ fix_permissions() {
     
     # 设置脚本文件的执行权限
     log "INFO" "设置脚本文件执行权限..."
-    find "${target_base}" -type f -name "*.sh" -exec sudo chmod +x {} \; 2>/dev/null || true
+    find "${base_dir}" -type f -name "*.sh" -exec sudo chmod +x {} \; 2>/dev/null || true
     
     log "INFO" "权限修正完成"
     return 0
 }
 
 process_template_files() {
-    local target_base="${INSTALL_DIR}"
+    local base_dir="${INSTALL_DIR}"
     
     # 切换到目标目录
-    cd "$target_base" || {
-        log "ERROR" "无法切换到安装目录: $target_base"
+    cd "$base_dir" || {
+        log "ERROR" "无法切换到安装目录: $base_dir"
         return 1
     }
     
@@ -177,8 +177,7 @@ process_template_files() {
 }
 
 register_services() {
-    local target_base="${INSTALL_DIR}"
-    local initd_dir="${target_base}/init.d"
+    local initd_dir="${INSTALL_DIR}/init.d"
     
     # 检查 init.d 目录是否存在
     if [[ ! -d "$initd_dir" ]]; then
@@ -234,11 +233,11 @@ register_services() {
 }
 
 download_docker_images() {
-    local target_base="${INSTALL_DIR}"
+    local base_dir="${INSTALL_DIR}"
     
     # 切换到目标目录
-    cd "$target_base" || {
-        log "ERROR" "无法切换到安装目录: $target_base"
+    cd "$base_dir" || {
+        log "ERROR" "无法切换到安装目录: $base_dir"
         return 1
     }
     
@@ -391,23 +390,23 @@ main() {
         log "WARN" "权限修正失败，但继续执行"
     fi
     
-    # 处理模板文件
-    if ! process_template_files; then
-        log "WARN" "模板文件处理失败，但继续执行"
-    fi
-    
     # 下载Docker镜像
     if ! download_docker_images; then
         log "WARN" "Docker镜像下载失败，请手动执行 ${INSTALL_DIR}/docker-download-images.sh"
     fi
     
+    # 处理模板文件
+    if ! process_template_files; then
+        log "WARN" "模板文件处理失败，但继续执行"
+    fi
+    
     # 启动Docker Compose服务
     log "INFO" "启动Docker Compose服务..."
-    cd "${target_base:-$INSTALL_DIR}" || {
+    cd "${base_dir:-$INSTALL_DIR}" || {
         log "ERROR" "无法切换到安装目录"
         return 1
     }
-    if ! docker-compose --env-file .env --env-file .images.env -f docker-compose.yml up -d; then
+    if ! docker-compose -f docker-compose.yml up -d; then
         log "ERROR" "Docker Compose服务启动失败"
         return 1
     fi
@@ -428,7 +427,7 @@ main() {
     log "INFO" "安装位置: ${INSTALL_DIR}"
     log "INFO" "后续步骤："
     log "INFO" "  1. 启动服务: cd ${INSTALL_DIR} && bash run.sh"
-    log "INFO" "  2. 访问管理界面: http://${SERVER_IP}:39080/costrict-admin (默认账号: admin, 密码: admin)"
+    log "INFO" "  2. 访问管理界面: http://${SERVER_IP}:39080/costrict-admin/ (默认账号: admin, 密码: admin)"
 }
 
 main "$@"

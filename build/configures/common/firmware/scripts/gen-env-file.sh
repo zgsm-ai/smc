@@ -7,7 +7,7 @@ log() {
     echo -e "[${timestamp}] [${level}] ${message}"
 }
 
-get_image_envs() {
+gen_images_env() {
     local output_file="$1"
     
     # 切换到目标目录
@@ -28,7 +28,7 @@ get_image_envs() {
         log "INFO" "处理镜像配置文件: $env_file"
         
         # 将非空、非注释行追加到输出文件
-        grep -v '^#' "$env_file" | grep -v '^$' >> "$output_file"
+        grep -v '^#' "$env_file" | grep -v '^$' | tr -d '\r' >> "$output_file"
     done < <(find . -name "image.env" -type f)
     
     if [[ $found_files -eq 0 ]]; then
@@ -82,27 +82,27 @@ merge_env() {
     return 0
 }
 
-create_dot_env() {
+gen_dot_env() {
     # 清空 .env 文件（如果存在）
-    > ${dotenv_file} 2>/dev/null || :  # 使用 : 确保命令总是成功
+    > ${dot_env_file} 2>/dev/null || :  # 使用 : 确保命令总是成功
     # 调用 merge_env，将 ".images.env" 和 "costrict.env" 合并到 ".env" 文件中
-    merge_env ${dotenv_file} ${envs_file}
-    merge_env ${dotenv_file} ${costrict_env_file}
+    merge_env ${dot_env_file} ${images_env_file}
+    merge_env ${dot_env_file} ${costrict_env_file}
     
     # source 加载 costrict.env，该文件中可能定义了COSTRICT_HOST，COSTRICT_BASEURL
     if [ -f ${costrict_env_file} ]; then
         source ${costrict_env_file}
     fi
-    
+    local server_ip=$(hostname -I | awk '{ print $1 }')
     # 判断 COSTRICT_HOST 是否已定义，若未定义则添加到 .env
     if [ -z "${COSTRICT_HOST:-}" ]; then
-        COSTRICT_HOST="${SERVER_IP}"
-        echo "COSTRICT_HOST=\"${SERVER_IP}\"" >> ${dotenv_file}
+        COSTRICT_HOST="${server_ip}"
+        echo "COSTRICT_HOST=\"${server_ip}\"" >> ${dot_env_file}
     fi
     
     # 判断 COSTRICT_BASEURL 是否已定义，若未定义则添加到 .env
     if [ -z "${COSTRICT_BASEURL:-}" ]; then
-        echo "COSTRICT_BASEURL=\"http://${COSTRICT_HOST}:${PORT_APISIX_ENTRY}\"" >> ${dotenv_file}
+        echo "COSTRICT_BASEURL=\"http://${COSTRICT_HOST}:${PORT_APISIX_ENTRY}\"" >> ${dot_env_file}
     fi
     
     return 0
@@ -136,25 +136,25 @@ done
 [[ "${FROM_DIR: -1}" != "/" ]] && FROM_DIR="${FROM_DIR}/"
 [[ "${OUTPUT_DIR: -1}" != "/" ]] && OUTPUT_DIR="${OUTPUT_DIR}/"
 
-envs_file="${OUTPUT_DIR}.images.env"
-list_file="${OUTPUT_DIR}.images.list"
-dotenv_file="${OUTDIR_DIR}.env"
+images_env_file="${OUTPUT_DIR}.images.env"
+images_list_file="${OUTPUT_DIR}.images.list"
+dot_env_file="${OUTDIR_DIR}.env"
 costrict_env_file="${FROM_DIR}costrict.env"
 
 mkdir -p ${OUTPUT_DIR}
 
-log "INFO" "生成镜像环境变量文件: ${envs_file} ..."
-get_image_envs ${envs_file} || {
-    log "ERROR" "生成镜像环境变量文件 ${envs_file} 失败"
-    exit 1
-}
+# 根据各个目录下的image.env构建.images.list
+log "INFO" "生成镜像环境变量文件: ${images_env_file} ..."
+if ! gen_images_env ${images_env_file}; then
+    return 1
+fi
 
 # 从.images.env提取镜像列表
-log "INFO" "生成镜像列表文件: $list_file ..."
-awk -F'=' '{print $2}' "${envs_file}" > "${list_file}"
+log "INFO" "生成镜像列表文件: $images_list_file ..."
+awk -F'=' '{print $2}' "${images_env_file}" > "${images_list_file}"
 
-log "INFO" "生成环境变量文件 ${dotenv_file} ..."
-if ! create_dot_env; then
-    log "ERROR" "生成环境变量文件 ${dotenv_file} 失败"
+# 把costrict.env,.images.env合并成.env文件
+log "INFO" "生成环境变量文件 ${dot_env_file} ..."
+if ! gen_dot_env; then
     return 1
 fi

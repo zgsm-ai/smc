@@ -16,7 +16,7 @@ export PATH="$PATH:/root/.costrict/bin"
 #
 
 usage() {
-    echo "Usage: build-packages.sh [-p PACKAGE] [--packages PACKAGES] [--type TYPE] [--key KEY_FILE] [--clean] [--build] [--pack] [--index] [--upload] [--upload-packages] [--all]"
+    echo "Usage: build-packages.sh [-p PACKAGE] [--packages PACKAGES] [--type TYPE] [--key KEY_FILE] [--def] [--clean] [--build] [--pack] [--index] [--upload] [--upload-packages] [--auto-version]"
     echo "Options:"
     echo "  -p, --package        Package name (optional, if not specified, will process all packages)"
     echo "  --packages <list>    Package list (space-separated, e.g., \"pkg1 pkg2 pkg3\")"
@@ -30,6 +30,7 @@ usage() {
     echo "  --def                Execute default steps (build, pack, index)"
     echo "  --upload-packages    Need upload packages.json"
     echo "  --upload-to <env>    Upload package to <env>, env: def, all, prod, test, qianliu"
+    echo "  --auto-version       Auto increment version number when building package"
     echo "  -h, --help           Help information"
     exit 1
 }
@@ -59,9 +60,10 @@ UPLOAD_TEST=false
 UPLOAD_QIANLIU=false
 PACKAGE_TYPE=""
 PACKAGES=""
+AUTO_VERSION=false
 
 # Parse command line options
-args=$(getopt -o hp:K: --long help,package:,packages:,kind:,type:,key:,clean,build,pack,index,def,upload,upload-packages,upload-to: -n 'build-packages.sh' -- "$@")
+args=$(getopt -o hp:K: --long help,package:,packages:,kind:,type:,key:,clean,build,pack,index,def,upload,upload-packages,upload-to:,auto-version -n 'build-packages.sh' -- "$@")
 [ $? -ne 0 ] && usage
 
 eval set -- "$args"
@@ -80,6 +82,7 @@ while true; do
         --upload) enable_upload "def"; shift;;
         --upload-packages) NEED_UPLOAD_PACKAGES=true; shift;;
         --upload-to) enable_upload "$2"; shift 2;;
+        --auto-version) AUTO_VERSION=true; shift;;
         -h|--help) usage; exit 0;;
         --) shift; break;;
         *) usage;;
@@ -243,7 +246,7 @@ build_zip() {
         
         # 检查平台特定目录是否存在，如果不存在则使用common目录
         if [ ! -d "$platform_source_dir" ]; then
-            echo "Warning: Platform directory $platform_source_dir does not exist"
+            # echo "Warning: Platform directory $platform_source_dir does not exist"
             if [ -d "$source_dir/common/$package_name" ]; then
                 platform_source_dir="$source_dir/common/$package_name"
                 echo "Using common directory: $platform_source_dir"
@@ -307,7 +310,13 @@ build_package() {
     if [ -z "$package_platforms" ] || [ "$package_platforms" = "null" ] || [ "$package_platforms" = "" ]; then
         package_platforms='[{"os":"common","arch":"common"}]'
     fi
-    
+
+    # 如果启用了auto-version选项，则自动递增版本号
+    if [ "$AUTO_VERSION" = true ]; then
+        package_version=$(increment_version "$package" "$package_version")
+        echo "Auto incrementing version for package: $package, New version: $package_version"
+    fi
+
     echo "=============================================="
     echo "Building package: $package, version: $package_version, path: $package_path, type: $package_type"
     echo "=============================================="
@@ -344,6 +353,28 @@ build_packages() {
     done
     
     echo "All packages built successfully!"
+}
+
+increment_version() {
+    local package_name="$1"
+    local current_version="$2"
+
+    # 自动递增 patch 版本号
+    local MAJOR=$(echo "$current_version" | cut -d'.' -f1)
+    local MINOR=$(echo "$current_version" | cut -d'.' -f2)
+    local PATCH=$(echo "$current_version" | cut -d'.' -f3)
+    local NEW_PATCH=$((PATCH + 1))
+    local NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
+ 
+    # 使用 jq 更新版本号
+    jq "(.builds[] | select(.name == \"$package_name\") | .version) |= \"$NEW_VERSION\"" "packages.json" > "packages.json.tmp"
+
+    if [ $? -ne 0 ]; then
+        rm -f "packages.json.tmp"
+        exit 1
+    fi
+    mv "packages.json.tmp" "packages.json"
+    echo "$NEW_VERSION"
 }
 
 # Function to get package type from packages.json

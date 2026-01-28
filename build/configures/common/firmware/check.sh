@@ -10,8 +10,6 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 
 # -------------------------- Constants Definition --------------------------
 declare -r BASE_DIR=$(pwd)
-declare -r SERVER_IP=$(hostname -I | awk '{ print $1 }')
-declare -r SERVER_IP
 
 # -------------------------- Function Definitions --------------------------
 log() {
@@ -147,12 +145,9 @@ validate_install_environment() {
     # ========== 4. 检查核心配置文件 ==========
     log "INFO" "检查核心配置文件..."
     local required_configs=(
-        "configure.sh"
-        "tpl-resolve.sh"
-        "docker-download-images.sh"
         "docker-compose.yml"
-        ".env"
-        "utils.sh"
+        "costrict.env"
+        "MANIFEST"
     )
     
     for config in "${required_configs[@]}"; do
@@ -172,11 +167,23 @@ validate_install_environment() {
     done
     
     # ========== 5. 检查 scripts 子脚本 ==========
-    log "INFO" "检查 scripts 子脚本..."
+    log "INFO" "检查脚本文件..."
     local required_scripts=(
+        "configure.sh"
+        "tpl-resolve.sh"
+        "backup.sh"
+        "deploy-to.sh"
+        "init.sh"
+        "restore.sh"
+        "run.sh"
+        "docker-download-images.sh"
+        "scripts/download-images.sh"
         "scripts/gen-env-file.sh"
-        "scripts/verify-images.sh"
+        "scripts/load-images.sh"
         "scripts/pull-images.sh"
+        "scripts/push-images.sh"
+        "scripts/save-images.sh"
+        "scripts/verify-images.sh"
     )
     
     for script in "${required_scripts[@]}"; do
@@ -232,7 +239,6 @@ validate_install_environment() {
     local syntax_check_scripts=(
         "${target_base}/configure.sh"
         "${target_base}/tpl-resolve.sh"
-        "${target_base}/utils.sh"
     )
     
     for script in "${syntax_check_scripts[@]}"; do

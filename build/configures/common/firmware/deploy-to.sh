@@ -281,9 +281,8 @@ main() {
     log "INFO" "部署完成！"
     log "INFO" "部署位置: ${INSTALL_TO}"
     log "INFO" "后续步骤："
-    log "INFO" "  1. 检查并修改配置文件: ${INSTALL_TO}/configure.sh"
-    log "INFO" "  2. 完成数据初始化: cd ${INSTALL_TO} && bash init.sh"
-    log "INFO" "  3. 启动服务: cd ${INSTALL_TO} && bash run.sh"
+    log "INFO" "  1. 完成数据初始化: cd ${INSTALL_TO} && bash init.sh"
+    log "INFO" "  2. 启动服务: cd ${INSTALL_TO} && bash run.sh"
 }
 
 main "$@"

@@ -153,21 +153,21 @@
           "arch": "amd64"
         }
       ],
-      "version": "1.0.25",
+      "version": "1.0.38",
       "description": "The back-end management of costrict"
     },
     {
       "name": "costrict-admin-backend",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.25",
+      "version": "1.0.38",
       "description": "The back-end docker-service of costrict"
     },
     {
       "name": "costrict-admin-frontend",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.20",
+      "version": "1.0.28",
       "description": "The front-end page of the costrict-admin service"
     },
     {
@@ -183,7 +183,7 @@
       "name": "firmware",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.30",
+      "version": "1.0.32",
       "description": "The firmware of the backend system"
     },
     {
@@ -197,7 +197,7 @@
       "name": "backend",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.18",
+      "version": "1.0.21",
       "description": "Backend Subsystem Definition File"
     },
     {
@@ -326,7 +326,7 @@
       "name": "portal",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "Portal Subsystem Definition File"
     },
     {

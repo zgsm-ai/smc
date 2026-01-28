@@ -40,7 +40,6 @@ check_core_dependencies() {
     # 检查依赖项目录/文件
     local deps=(
         ".env"
-        ".images.env"
         "scripts/gen-env-file.sh"
         "docker-compose.yml"
         "costrict-admin-backend"
@@ -97,7 +96,7 @@ start_docker_services() {
     fi
     log "INFO" "Docker Compose服务启动完成"
     log "INFO" "系统启动完成"
-    log "INFO" "请登录到诸葛神码后端管理页面 [http://${SERVER_IP}:39080/costrict-admin] (默认账号: admin, 密码: admin)"
+    log "INFO" "请登录到诸葛神码后端管理页面 [http://${SERVER_IP}:39080/costrict-admin/] (默认账号: admin, 密码: admin)"
     return 0
 }
 
