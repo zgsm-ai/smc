@@ -8,7 +8,7 @@ services:
       - INDEX_NODE=1
     volumes:
       - ./conf.yaml:/app/conf/conf.yaml:ro
-      - ./logs:/app/logs
+      - /root/.costrict/logs/codebase-embedder/logs:/app/logs
     networks:
       - shenma
     healthcheck:

@@ -5,7 +5,7 @@ services:
     environment:
       TZ: "Asia/Shanghai"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
       - "${PORT_PROMETHEUS}:9090"
     networks:
@@ -21,7 +21,7 @@ services:
     volumes:
       - "./grafana/provisioning:/etc/grafana/provisioning"
       - "./grafana/dashboards:/var/lib/grafana/dashboards"
-      - "./grafana/config/grafana.ini:/etc/grafana/grafana.ini"
+      - "./grafana/config/grafana.ini:/etc/grafana/grafana.ini:ro"
     networks:
       - shenma
 
@@ -44,6 +44,6 @@ services:
     ports:
       - "${PORT_ES}:9200"
     volumes:
-      - ./es/data:/usr/share/elasticsearch/data
+      - /root/.costrict/data/es/data:/usr/share/elasticsearch/data
     networks:
       - shenma

@@ -572,19 +572,7 @@ func (u *Upgrader) UpgradePackage(specVer *VersionNumber) (PackageVersion, bool,
 }
 
 /**
- *	移除指定名字的包
- *	@param {string} packageName - 要移除的包名称
- *	@param {string} baseDir - costrict数据所在的基路径，如果为空则使用默认路径
- *	@returns {error} 返回错误对象，成功时返回nil
- *	@description
- *	- 移除指定包的所有相关文件，包括包描述文件和安装的包文件
- *	- 首先读取包描述信息以确定需要删除的文件位置
- *	- 支持自定义baseDir，如果为空则使用默认的.costrict目录
- *	- 如果包不存在或已删除，不会报错
- *	@throws
- *	- 读取包描述文件失败
- *	- 删除包文件失败
- *	- 删除包描述文件失败
+ *	移除指定版本或当前版本的包
  */
 func (u *Upgrader) RemovePackage(ver *VersionNumber) error {
 	if ver != nil {
@@ -837,9 +825,7 @@ func (u *Upgrader) activatePackage(pkg PackageVersion) error {
 func (u *Upgrader) unzipPackage(pkg *PackageVersion, cacheFname string) error {
 	_, _, fullpath := u.GetInstallPaths(pkg)
 
-	// Check if target directory exists and remove all content to prevent residue
 	if _, err := os.Stat(fullpath); err == nil {
-		// Remove directory and all its content
 		if err := os.RemoveAll(fullpath); err != nil {
 			return fmt.Errorf("unzipPackage: failed to remove directory '%s': %v", fullpath, err)
 		}
@@ -899,7 +885,6 @@ func (u *Upgrader) unzipPackage(pkg *PackageVersion, cacheFname string) error {
 		}
 		defer dstFile.Close()
 
-		// Copy file content
 		if _, err := io.Copy(dstFile, srcFile); err != nil {
 			return fmt.Errorf("unzipPackage: failed to copy file '%s': %v", file.Name, err)
 		}
@@ -1069,16 +1054,16 @@ func (u *Upgrader) removeSpecialVersion(ver VersionNumber) error {
 		return nil
 	}
 
+	// 检查文件package/caches/x.x.x/xx是否存在，如果存在则删除
 	_, fname := filepath.Split(pkg.FileName)
 	cacheFname := filepath.Join(cacheDir, ver.String(), fname)
-	// 检查文件是否存在，如果存在则删除
 	if _, err := os.Stat(cacheFname); err == nil {
 		if err := os.Remove(cacheFname); err != nil {
 			return err
 		}
 	}
 
-	// 删除包描述文件
+	// 删除包描述文件 package/caches/x.x.x.json
 	if err := os.Remove(pkgFile); err != nil {
 		return err
 	}

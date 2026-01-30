@@ -38,11 +38,6 @@ curl -i  http://$APISIX_ADDR/apisix/admin/routes -H "$AUTH" -H "$TYPE" -X PUT -d
         "rejected_code": 429,
         "key_type": "var_combination",
         "key": "$remote_addr $http_x_forwarded_for"
-      },
-      "file-logger": {
-        "path": "logs/access.log",
-        "include_req_body": true,
-        "include_resp_body": true
       }
     }
   }'

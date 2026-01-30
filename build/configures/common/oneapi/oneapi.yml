@@ -5,7 +5,7 @@ services:
     environment:
       TZ: "Asia/Shanghai"
     volumes:
-      - ./data:/data
+      - /root/.costrict/data/oneapi/data:/data
     ports:
       - "${PORT_ONEAPI}:3000"
     networks:

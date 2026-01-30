@@ -30,6 +30,7 @@
 # ===================================================
 
 @@portal/data/costrict-admin
+@clean
 
 assets
 index.html

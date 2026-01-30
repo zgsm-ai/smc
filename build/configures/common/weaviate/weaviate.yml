@@ -14,6 +14,6 @@ services:
       ASYNC_INDEXING: "true"
       AUTHENTICATION_APIKEY_ENABLED: "false"
     volumes:
-      - ./data:/var/lib/weaviate
+      - /root/.costrict/data/weaviate/data:/var/lib/weaviate
     networks:
       - shenma

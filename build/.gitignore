@@ -1,0 +1,11 @@
+# 忽略所有文件
+*
+packages
+# 但包含以下特定文件和目录
+!build-packages.sh
+!check-update.sh
+!packages.json
+!start-local-site.sh
+!configures/
+!configures/**
+!site

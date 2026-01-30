@@ -5,8 +5,7 @@
     "mode": "debug"
   },
   "database": {
-    "type": "sqlite",
-    "dsn": "/root/.costrict/data/costrict-admin/costrict-admin.db"
+    "type": "sqlite"
   },
   "nacos": {
     "enabled": false,
@@ -27,8 +26,6 @@
   },
   "higress": {
     "enabled": false,
-    "config_path": "/etc/higress",
-    "service_url": "",
     "environment": "production"
   },
   "monitor": {

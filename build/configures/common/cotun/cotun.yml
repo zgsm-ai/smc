@@ -6,6 +6,6 @@ services:
     environment:
       TZ: "Asia/Shanghai"
     volumes:
-      - ./users.json:/cotun/users.json
+      - ./users.json:/cotun/users.json:ro
     networks:
       - shenma

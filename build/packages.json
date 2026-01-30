@@ -17,6 +17,7 @@
     "codebase-querier",
     "codereview",
     "credit-manager",
+    "client-manager",
     "etcd",
     "frontend",
     "monitoring",
@@ -153,21 +154,21 @@
           "arch": "amd64"
         }
       ],
-      "version": "1.0.38",
+      "version": "1.0.43",
       "description": "The back-end management of costrict"
     },
     {
       "name": "costrict-admin-backend",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.38",
+      "version": "1.0.45",
       "description": "The back-end docker-service of costrict"
     },
     {
       "name": "costrict-admin-frontend",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.28",
+      "version": "1.0.32",
       "description": "The front-end page of the costrict-admin service"
     },
     {
@@ -183,21 +184,21 @@
       "name": "firmware",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.32",
+      "version": "1.0.36",
       "description": "The firmware of the backend system"
     },
     {
       "name": "frontend",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.2",
+      "version": "1.0.4",
       "description": "Frontend Subsystem Definition File"
     },
     {
       "name": "backend",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.21",
+      "version": "1.0.25",
       "description": "Backend Subsystem Definition File"
     },
     {
@@ -249,112 +250,119 @@
       "name": "apisix",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "Apisix Subsystem Definition File"
     },
     {
       "name": "casdoor",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.2",
+      "version": "1.0.4",
       "description": "Casdoor Subsystem Definition File"
     },
     {
       "name": "chat-rag",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "Chat RAG Subsystem Definition File"
     },
     {
       "name": "code-completion",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "Code Completion Subsystem Definition File"
     },
     {
       "name": "codebase-embedder",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.2",
+      "version": "1.0.4",
       "description": "Codebase Embedder Subsystem Definition File"
     },
     {
       "name": "codebase-querier",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "Codebase Querier Subsystem Definition File"
     },
     {
       "name": "codereview",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "Code Review Subsystem Definition File"
     },
     {
       "name": "credit-manager",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "Credit Manager Subsystem Definition File"
+    },
+    {
+      "name": "client-manager",
+      "type": "zip",
+      "path": "./configures",
+      "version": "1.0.3",
+      "description": "Client Management Support Service"
     },
     {
       "name": "etcd",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "ETCD Subsystem Definition File"
     },
     {
       "name": "monitoring",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "Monitoring Subsystem Definition File"
     },
     {
       "name": "oneapi",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "OneAPI Subsystem Definition File"
     },
     {
       "name": "portal",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.3",
+      "version": "1.0.5",
       "description": "Portal Subsystem Definition File"
     },
     {
       "name": "postgres",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "PostgreSQL Subsystem Definition File"
     },
     {
       "name": "quota-manager",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.1",
+      "version": "1.0.3",
       "description": "Quota Manager Subsystem Definition File"
     },
     {
       "name": "redis",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.2",
+      "version": "1.0.4",
       "description": "Redis Subsystem Definition File"
     },
     {
       "name": "weaviate",
       "type": "zip",
       "path": "./configures",
-      "version": "1.0.2",
+      "version": "1.0.4",
       "description": "Weaviate Subsystem Definition File"
     }
   ]

@@ -8,8 +8,8 @@ services:
       POSTGRES_USER: "${POSTGRES_USER}"
       POSTGRES_PASSWORD: "${PASSWORD_POSTGRES}"
     volumes:
-      - ./data:/var/lib/postgresql/data
-      - ./initdb.d:/docker-entrypoint-initdb.d
+      - /root/.costrict/data/postgres/data:/var/lib/postgresql/data
+      - ./initdb.d:/docker-entrypoint-initdb.d:ro
     ports:
       - "${PORT_POSTGRES}:5432/tcp"
     networks:

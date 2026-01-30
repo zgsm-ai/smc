@@ -24,6 +24,6 @@ services:
       DATABASE_USERNAME: ${POSTGRES_USER}
       ENCRYPT_AESKEY: pUD8mylndVVK7hTNt56VZMkNrppinbNg
     volumes:
-      - ./oidc-auth/logs:/app/logs
+      - /root/.costrict/logs/oidc-auth/logs:/app/logs
     networks:
       - shenma

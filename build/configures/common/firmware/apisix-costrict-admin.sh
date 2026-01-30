@@ -25,12 +25,6 @@ curl -i http://$APISIX_ADDR/apisix/admin/routes -H "$AUTH" -H "$TYPE" -X PUT -d 
     "upstream_id": "costrict-admin-backend",
     "priority": 100,
     "plugins": {
-      "file-logger": {
-        "path": "logs/access.log",
-        "include_req_body": false,
-        "include_resp_body": false,
-        "only_req_line": true
-      },
       "limit-count": {
         "count": 300,
         "time_window": 60,
@@ -48,12 +42,6 @@ curl -i http://$APISIX_ADDR/apisix/admin/routes -H "$AUTH" -H "$TYPE" -X PUT -d 
     "upstream_id": "costrict-admin-frontend",
     "priority": 10,
     "plugins": {
-      "file-logger": {
-        "path": "logs/access.log",
-        "include_req_body": false,
-        "include_resp_body": false,
-        "only_req_line": true
-      },
       "limit-count": {
         "count": 300,
         "time_window": 60,

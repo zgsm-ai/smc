@@ -47,8 +47,14 @@ fi
 
 function pull_images() {
     for image in `echo ${IMAGES}`; do
-        echo "docker pull ${image}"
-        docker pull ${image}
+        # 检查镜像是否存在，使用与 verify-images.sh 相同的方式
+        image_id=$(docker image inspect "${image}" --format='{{.Id}}' 2> /dev/null)
+        if [ -n "${image_id}" ]; then
+            echo "镜像 ${image} 已存在，跳过拉取"
+        else
+            echo "docker pull ${image}"
+            docker pull ${image}
+        fi
     done
 }
 

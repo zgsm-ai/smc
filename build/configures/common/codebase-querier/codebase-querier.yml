@@ -9,7 +9,7 @@ services:
       - TZ=Asia/Shanghai
     volumes:
       - ./conf.yaml:/app/conf/conf.yaml:ro
-      - ./logs:/app/logs
+      - /root/.costrict/logs/codebase-querier/logs:/app/logs
     networks:
       - shenma
     healthcheck:

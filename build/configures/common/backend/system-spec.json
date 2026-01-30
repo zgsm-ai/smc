@@ -128,6 +128,12 @@
       "allowed_versions": ">=1.0.0"
     },
     {
+      "component_name": "client-manager",
+      "display_name": "Client-Manager",
+      "description": "客户端管理支撑服务",
+      "allowed_versions": ">=1.0.0"
+    },
+    {
       "component_name": "weaviate",
       "display_name": "Weaviate",
       "description": "向量数据库，用于语义搜索", 

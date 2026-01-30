@@ -19,11 +19,6 @@ curl -i http://$APISIX_ADDR/apisix/admin/routes -H "$AUTH" -H "$TYPE" -X PUT -d 
       "request-id": {
         "include_in_response": true
       },
-      "file-logger": {
-        "include_req_body": true,
-        "include_resp_body": true,
-        "path": "logs/access.log"
-      },
       "limit-count": {
         "count": 10000,
         "time_window": 86400,

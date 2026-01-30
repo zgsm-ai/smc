@@ -90,6 +90,11 @@ services:
       file: ./credit-manager/credit-manager.yml
       service: credit-manager
 
+  client-manager:
+    extends:
+      file: ./client-manager/client-manager.yml
+      service: client-manager
+
   oidc-auth:
     extends:
       file: ./casdoor/oidc-auth.yml

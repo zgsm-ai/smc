@@ -23,14 +23,7 @@ curl -i  http://$APISIX_ADDR/apisix/admin/routes -H "$AUTH" -H "$TYPE" -X PUT -d
     "uris": ["/ws", "/ws/*"],
     "id": "cotun-ws",
     "upstream_id": "cotun-websocket",
-    "enable_websocket": true,
-    "plugins": {
-      "file-logger": {
-        "path": "logs/access.log",
-        "include_req_body": true,
-        "include_resp_body": true
-      }
-    }
+    "enable_websocket": true
   }'
 
 curl -i  http://$APISIX_ADDR/apisix/admin/routes -H "$AUTH" -H "$TYPE" -X PUT -d '{
@@ -38,11 +31,6 @@ curl -i  http://$APISIX_ADDR/apisix/admin/routes -H "$AUTH" -H "$TYPE" -X PUT -d
     "id": "cotun-manager",
     "upstream_id": "cotun-manager",
     "plugins": {
-      "file-logger": {
-        "path": "logs/access.log",
-        "include_req_body": true,
-        "include_resp_body": true
-      },
       "openid-connect": {
         "client_id": "'"$OIDC_CLIENT_ID"'",
         "client_secret": "'"$OIDC_CLIENT_SECRET"'",

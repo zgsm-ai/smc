@@ -3,18 +3,18 @@
 . ./configure.sh
 
 curl -i http://$APISIX_ADDR/apisix/admin/upstreams -H "$AUTH" -H "$TYPE" -X PUT  -d '{
-    "id": "quota-manager",
+    "id": "client-manager",
     "nodes": {
-      "quota-manager:8080": 1
+      "client-manager.costrict.svc.cluster.local:8080": 1
     },
     "type": "roundrobin"
   }'
 
 curl -i  http://$APISIX_ADDR/apisix/admin/routes -H "$AUTH" -H "$TYPE" -X PUT -d '{
-    "id": "quota-manager",
-    "name": "quota-manager",
-    "uris": ["/quota-manager/api/v1/quota*"],
-    "upstream_id": "quota-manager",
+    "id": "client-manager",
+    "name": "client-manager",
+    "uris": ["/client-manager/api/v1/*"],
+    "upstream_id": "client-manager",
     "plugins": {
       "limit-count": {
         "allow_degradation": false,
@@ -28,12 +28,12 @@ curl -i  http://$APISIX_ADDR/apisix/admin/routes -H "$AUTH" -H "$TYPE" -X PUT -d
       },
       "limit-req": {
         "allow_degradation": false,
-        "burst": 300,
+        "burst": 30,
         "key": "$remote_addr $http_x_forwarded_for",
         "key_type": "var_combination",
         "nodelay": false,
         "policy": "local",
-        "rate": 300,
+        "rate": 30,
         "rejected_code": 429
       },
       "openid-connect": {

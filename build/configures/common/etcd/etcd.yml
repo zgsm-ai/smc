@@ -3,7 +3,7 @@ services:
     image: ${IMAGE_ETCD}
     restart: always
     volumes:
-      - ./data:/bitnami/etcd/data
+      - /root/.costrict/data/etcd/data:/bitnami/etcd/data
     user: "1000:1000"
     environment:
       TZ: "Asia/Shanghai"

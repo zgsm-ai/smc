@@ -27,6 +27,10 @@ show_usage() {
 --clean           部署前清理目标目录，先删除目标目录下的所有文件和目录
 -h, --help        显示帮助信息
 
+MANIFEST 指令:
+@@ <path>         设置目标相对路径（后续文件部署到此路径下）
+@clean            清空当前目标相对路径下的所有内容
+
 示例:
     $0                                            # 使用默认设置部署
     $0 --from /tmp/source                         # 指定源目录部署
@@ -34,6 +38,15 @@ show_usage() {
     $0 --manifest custom.MANIFEST                 # 使用自定义清单文件
     $0 --from /tmp/source --to /opt/costrict --manifest custom.MANIFEST  # 完整示例
     $0 --to /opt/costrict --clean                 # 清理后再部署
+
+MANIFEST 文件示例：
+    # 设置目标相对路径为 config
+    @@ config
+    # 清空 config 目录下的所有内容
+    @clean
+    # 部署文件到 config 目录
+    config.yaml
+    app.conf
 
 EOF
 }
@@ -78,7 +91,12 @@ parse_arguments() {
     
     # 转换为绝对路径
     INSTALL_FROM="$(cd "$INSTALL_FROM" && pwd)"
-    INSTALL_TO="$(cd "$INSTALL_TO" 2>/dev/null && echo "$INSTALL_TO" || echo "$INSTALL_TO")"
+    
+    # 安全检查：确保 INSTALL_TO 不是危险目录
+    check_dangerous_dirs "$INSTALL_TO"
+    
+    # 处理 MANIFEST_FILE 路径
+    [[ "$MANIFEST_FILE" != /* ]] && MANIFEST_FILE="${INSTALL_FROM}/${MANIFEST_FILE}"
     
     log "INFO" "部署源: $INSTALL_FROM"
     log "INFO" "部署目标: $INSTALL_TO"
@@ -88,8 +106,30 @@ parse_arguments() {
     fi
 }
 
+check_dangerous_dirs() {
+    local target_dir="$1"
+    
+    # 安全检查：确保参数非空
+    if [[ -z "$target_dir" ]]; then
+        log "ERROR" "安全错误: 目标目录参数为空，拒绝检查操作"
+        exit 1
+    fi
+    
+    # 安全检查：确保不是系统关键目录
+    local dangerous_dirs=("/" "/usr" "/usr/local" "/bin" "/sbin" "/etc" "/home" "/root")
+    for dangerous_dir in "${dangerous_dirs[@]}"; do
+        if [[ "$(cd "$target_dir" && pwd)" == "$(cd "$dangerous_dir" && pwd)" ]]; then
+            log "ERROR" "安全警告: 禁止部署到系统关键目录: $dangerous_dir"
+            exit 1
+        fi
+    done
+}
+
 clean_target_directory() {
     local target_dir="$1"
+    
+    # 检查是否为危险目录，如果是则直接退出程序
+    check_dangerous_dirs "$target_dir"
     
     log "INFO" "开始清理目标目录: $target_dir"
     
@@ -99,20 +139,12 @@ clean_target_directory() {
         return 0
     fi
     
-    # 安全检查：确保不是系统关键目录
-    local dangerous_dirs=("/" "/usr" "/usr/local" "/bin" "/sbin" "/etc" "/home" "/root")
-    for dangerous_dir in "${dangerous_dirs[@]}"; do
-        if [[ "$(cd "$target_dir" && pwd)" == "$(cd "$dangerous_dir" && pwd)" ]]; then
-            log "ERROR" "安全警告: 禁止清理系统关键目录: $dangerous_dir"
-            return 1
-        fi
-    done
-    
+    # 安全保护：使用路径变量保护语法，防止意外展开
     # 删除目标目录下的所有文件和目录
     log "INFO" "正在删除目标目录下的所有内容: $target_dir/*"
-    if sudo rm -rf "${target_dir}"/* 2>/dev/null; then
+    if sudo rm -rf "${target_dir:?}"/* 2>/dev/null; then
         # 如果删除了所有内容，再次删除可能残留的隐藏文件
-        sudo find "${target_dir}" -mindepth 1 -delete 2>/dev/null || true
+        sudo find "${target_dir:?}" -mindepth 1 -delete 2>/dev/null || true
         log "INFO" "目标目录清理完成"
         return 0
     else
@@ -122,19 +154,16 @@ clean_target_directory() {
 }
 
 validate_manifest() {
-    local manifest_path="${INSTALL_FROM}/${MANIFEST_FILE}"
-    
-    if [[ ! -f "$manifest_path" ]]; then
-        log "ERROR" "部署清单文件不存在: $manifest_path"
+    if [[ ! -f "$MANIFEST_FILE" ]]; then
+        log "ERROR" "部署清单文件不存在: $MANIFEST_FILE"
         return 1
     fi
     
-    log "INFO" "找到部署清单文件: $manifest_path"
+    log "INFO" "找到部署清单文件: $MANIFEST_FILE"
     return 0
 }
 
 install_files() {
-    local manifest_path="${INSTALL_FROM}/${MANIFEST_FILE}"
     local target_base="${INSTALL_TO}"
     local installed_count=0
     local failed_count=0
@@ -151,7 +180,7 @@ install_files() {
     
     # 读取部署清单并逐行处理
     while read -r line; do
-        # 处理 @@ 指令
+        # 处理 @@ 指令（设置目标相对路径）
         if [[ "$line" =~ ^[[:space:]]*@@[[:space:]]*(.*) ]]; then
             local directive_value="${BASH_REMATCH[1]}"
             # 规范化值（去除首尾空格）
@@ -164,6 +193,26 @@ install_files() {
             else
                 target_rel_path="/$directive_value"
                 log "INFO" "设置目标相对路径为: $directive_value"
+            fi
+            continue
+        fi
+        
+        # 处理 @clean 指令（清空当前目标路径下的内容）
+        if [[ "$line" =~ ^[[:space:]]*@clean[[:space:]]*$ ]]; then
+            local clean_path="${target_base}${target_rel_path}"
+            log "INFO" "清理目录: $clean_path"
+            
+            # 检查目录是否存在
+            if [[ ! -d "$clean_path" ]]; then
+                log "INFO" "目录不存在，跳过清理: $clean_path"
+            else
+                # 删除目录下的所有内容（保留目录本身）
+                if sudo rm -rf "${clean_path:?}"/* 2>/dev/null || sudo find "${clean_path}" -mindepth 1 -delete 2>/dev/null; then
+                    log "INFO" "目录清理完成: $clean_path"
+                else
+                    log "ERROR" "目录清理失败: $clean_path"
+                    failed_count=$((failed_count + 1))
+                fi
             fi
             continue
         fi
@@ -240,7 +289,7 @@ install_files() {
         fi
         
         installed_count=$((installed_count + 1))
-    done < "$manifest_path"
+    done < "$MANIFEST_FILE"
     
     log "INFO" "文件部署完成"
     log "INFO" "成功: $installed_count 个文件/目录"

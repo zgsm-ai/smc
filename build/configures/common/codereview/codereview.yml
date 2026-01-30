@@ -11,7 +11,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
     volumes:
-      - ./logs/review-manager:/app/logs
+      - /root/.costrict/logs/review-manager:/app/logs
       - ./config/review-manager:/app/config
     networks:
       - shenma
@@ -35,7 +35,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
     volumes:
-      - ./logs/review-worker:/app/logs
+      - /root/.costrict/logs/review-worker:/app/logs
       - ./config/review-manager:/app/config
     networks:
       - shenma
@@ -56,7 +56,7 @@ services:
       DATABASE_PASSWORD: ${PASSWORD_POSTGRES}
       DATABASE_NAME: codereview
     volumes:
-      - ./logs/issue-manager:/app/logs
+      - /root/.costrict/logs/issue-manager:/app/logs
       - ./config/issue-manager:/app/config
     networks:
       - shenma
@@ -80,7 +80,7 @@ services:
       REDIS_PORT: 6379
       REDIS_DB: 2
     volumes:
-      - ./logs/review-checker:/app/logs
+      - /root/.costrict/logs/review-checker:/app/logs
       - ./config/review-checker:/app/config
     networks:
       - shenma
