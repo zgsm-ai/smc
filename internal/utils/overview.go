@@ -14,6 +14,7 @@ type VersionOverview struct {
 	PackageType PackageType   `json:"packageType"` //包类型: exec/conf
 	FileName    string        `json:"fileName"`    //被打包的文件的名字
 	Size        uint64        `json:"size"`        //包文件大小
+	ReleaseTime string        `json:"releaseTime"` //发布时间
 	Build       string        `json:"build"`       //构建信息：Tag/Branch信息 CommitID BuildTime
 	Description string        `json:"description"` //版本描述，含有更丰富的可读信息
 }
