@@ -7,7 +7,6 @@ import (
 
 	"github.com/iancoleman/orderedmap"
 	"github.com/spf13/cobra"
-	"github.com/zgsm-ai/smc/internal/env"
 	"github.com/zgsm-ai/smc/internal/utils"
 )
 
@@ -75,7 +74,7 @@ func listPackages(verbose bool) error {
 	var dataList []*orderedmap.OrderedMap
 	// 获取包列表以检查Details中是否存在该包
 	u := utils.NewUpgrader("", utils.UpgradeConfig{
-		BaseUrl: env.BaseUrl + "/costrict",
+		BaseUrl: getUpgradeUrl(),
 	}, nil)
 
 	packages, err := u.GetRemotePackages()
@@ -119,7 +118,7 @@ func getSimplify(d RemotePackage_Columns_Verbose) RemotePackage_Columns {
  */
 func listPackage(packageName string, verbose bool) ([]*orderedmap.OrderedMap, error) {
 	u := utils.NewUpgrader(packageName, utils.UpgradeConfig{
-		BaseUrl: env.BaseUrl + "/costrict",
+		BaseUrl: getUpgradeUrl(),
 	}, nil)
 	// 获取该软件包支持的所有平台
 	pkg, err := u.GetRemotePlatforms()
@@ -199,7 +198,7 @@ func listPlatform(packageName, os, arch string, verbose bool) ([]RemotePackage_C
 	u := utils.NewUpgrader(packageName, utils.UpgradeConfig{
 		Os:      os,
 		Arch:    arch,
-		BaseUrl: env.BaseUrl + "/costrict",
+		BaseUrl: getUpgradeUrl(),
 	}, nil)
 
 	// 获取该平台的远程版本列表
